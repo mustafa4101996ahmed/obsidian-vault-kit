@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const KIT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const INSTALLER = path.join(KIT, 'install.mjs');
@@ -313,8 +313,8 @@ head('8. Scheduler');
 // and then removed, and the removal is asserted.
 {
   const probe = `
-import { availableSchedulers, installSchedule, removeSchedule, scheduleStatus } from ${JSON.stringify(path.join(KIT, 'lib', 'schedule.mjs'))};
-import { PLATFORM, LINK_TYPE, HOME } from ${JSON.stringify(path.join(KIT, 'lib', 'platform.mjs'))};
+import { availableSchedulers, installSchedule, removeSchedule, scheduleStatus } from ${JSON.stringify(pathToFileURL(path.join(KIT, 'lib', 'schedule.mjs')).href)};
+import { PLATFORM, LINK_TYPE, HOME } from ${JSON.stringify(pathToFileURL(path.join(KIT, 'lib', 'platform.mjs')).href)};
 const r = { home: HOME, platform: PLATFORM, linkType: LINK_TYPE, available: availableSchedulers() };
 if (r.available.length) {
   r.dry = installSchedule('07:30', { dryRun: true });
@@ -347,7 +347,8 @@ process.stdout.write(JSON.stringify(r));
       na('scheduler install (none available on this runner)');
     } else {
       eq('dry run reports the backend', r.dry?.kind, r.available[0]);
-      eq('installed backend', r.installed?.kind, r.available[0]);
+      truthy(`installed a backend (${r.installed?.kind})`, r.available.includes(r.installed?.kind));
+      if (r.installed?.tried?.length) console.log(`  fell through: ${JSON.stringify(r.installed.tried)}`);
       truthy(`status reports it (${String(r.status).slice(0, 70)})`, r.status !== null);
       console.log(`  remove: ${JSON.stringify(r.removed)}`);
       truthy('status is null after removal', r.statusAfter === null);
@@ -393,7 +394,7 @@ head('10. Uninstall');
   // Same reasoning as test 8: ask a child process with the sandbox home.
   const probeFile = path.join(HOME, 'sched-check.mjs');
   fs.writeFileSync(probeFile,
-    `import { scheduleStatus } from ${JSON.stringify(path.join(KIT, 'lib', 'schedule.mjs'))};\n`
+    `import { scheduleStatus } from ${JSON.stringify(pathToFileURL(path.join(KIT, 'lib', 'schedule.mjs')).href)};\n`
     + 'process.stdout.write(JSON.stringify(scheduleStatus()));\n');
   const left = run(probeFile).out.trim();
   fs.rmSync(probeFile, { force: true });

@@ -73,8 +73,12 @@ jobs:
           schtasks /Create /TN CiProbeTask /TR "cmd /c echo hi" /SC DAILY /ST 07:30 /F
           schtasks /Query /TN CiProbeTask /FO LIST | Select-String "TaskName","Next Run Time"
           schtasks /Delete /TN CiProbeTask /F
-          if (schtasks /Query /TN CiProbeTask 2>$null) { throw "task survived deletion" }
+          # A query for a deleted task exits 1, and GitHub's pwsh shell fails the step
+          # on a non-zero $LASTEXITCODE, so check the text and reset it explicitly.
+          $q = (schtasks /Query /TN CiProbeTask 2>&1 | Out-String)
+          if ($q -notmatch 'cannot find|does not exist') { throw "task survived deletion: $q" }
           Write-Host "schtasks register and remove ok"
+          exit 0
 
       - name: which() uses `where` on Windows
         shell: pwsh
