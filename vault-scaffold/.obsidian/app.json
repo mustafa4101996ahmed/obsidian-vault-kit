@@ -1,0 +1,9 @@
+{
+  "userIgnoreFilters": [
+    "_raw/"
+  ],
+  "alwaysUpdateLinks": true,
+  "newLinkFormat": "relative",
+  "useMarkdownLinks": false,
+  "attachmentFolderPath": "_raw/attachments"
+}

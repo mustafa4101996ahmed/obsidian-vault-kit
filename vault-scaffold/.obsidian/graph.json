@@ -1,0 +1,31 @@
+{
+  "collapse-filter": false,
+  "search": "",
+  "showTags": false,
+  "showAttachments": false,
+  "hideUnresolved": true,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    { "query": "path:projects/",  "color": { "a": 1, "rgb": 4886233 } },
+    { "query": "path:concepts/",  "color": { "a": 1, "rgb": 10181046 } },
+    { "query": "path:skills/",    "color": { "a": 1, "rgb": 2600544 } },
+    { "query": "path:entities/",  "color": { "a": 1, "rgb": 15105570 } },
+    { "query": "path:synthesis/", "color": { "a": 1, "rgb": 15277667 } },
+    { "query": "path:areas/",     "color": { "a": 1, "rgb": 1482885 } },
+    { "query": "path:mocs/",      "color": { "a": 1, "rgb": 15844367 } },
+    { "query": "path:archive/",   "color": { "a": 1, "rgb": 8359053 } }
+  ],
+  "collapse-display": false,
+  "showArrow": false,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": true,
+  "centerStrength": 0.518713248970312,
+  "repelStrength": 10,
+  "linkStrength": 1,
+  "linkDistance": 250,
+  "scale": 0.5,
+  "close": true
+}
