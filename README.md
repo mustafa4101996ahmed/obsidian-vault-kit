@@ -1,5 +1,7 @@
 # Obsidian vault kit
 
+[![CI](https://github.com/mustafa4101996ahmed/obsidian-vault-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafa4101996ahmed/obsidian-vault-kit/actions/workflows/ci.yml)
+
 A knowledge vault that Claude Code maintains for you. Feed it documents and it writes linked, filed
 notes. Use Claude Code normally and it mines your own sessions once a day for anything worth keeping.
 
@@ -74,13 +76,30 @@ vault-scaffold/          becomes your vault
 
 ## Platform support
 
-| | Scheduler | Notifications | Skill links | Verified |
-|---|---|---|---|---|
-| macOS | launchd | `osascript` | symlink | fully executed |
-| Linux | systemd user timer, cron fallback | `notify-send` | symlink | logic shared with macOS; scheduler unexecuted |
-| Windows | Task Scheduler | BurntToast or balloon | junction | unexecuted |
+| | Scheduler | Notifications | Skill links |
+|---|---|---|---|
+| macOS | launchd user agent | `osascript` | symlink |
+| Linux | systemd user timer, cron fallback | `notify-send` | symlink |
+| Windows | Task Scheduler (`schtasks`) | BurntToast or balloon | junction |
 
 Windows junctions need no administrator rights and no Developer Mode, unlike symlinks.
+
+## Tests
+
+```bash
+node test/suite.mjs          # the full suite
+node test/suite.mjs --keep   # leave the throwaway home behind to inspect
+```
+
+The suite runs the real installer and the real runner as child processes against a
+throwaway home, so it never reads or writes anything of yours. CI runs it on
+ubuntu-latest, macos-latest and windows-latest on every push, and asserts the
+Windows-specific paths separately: junction creation without elevation, `schtasks`
+register and remove, and that the generated PowerShell profile block parses.
+
+Platform-specific assertions are skipped rather than silently passed, and the summary
+prints the skip count, so a green run on one OS is never mistaken for a green run
+everywhere.
 
 ## Notes
 

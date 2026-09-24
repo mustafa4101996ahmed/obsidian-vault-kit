@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Every platform reports, so one failure does not hide the others.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Environment
+        run: |
+          node --version
+          node -e "const os=require('os');console.log(process.platform, os.arch(), os.release())"
+
+      - name: Syntax check every module
+        shell: bash
+        run: |
+          for f in install.mjs lib/*.mjs bin/*.mjs test/*.mjs; do
+            node --check "$f" && echo "ok   $f"
+          done
+
+      - name: Suite
+        run: node test/suite.mjs
+
+  # A green Windows run is only meaningful if the Windows-specific paths actually
+  # ran, rather than being skipped. Assert the ones that matter were exercised.
+  windows-specifics:
+    name: windows-latest (platform paths)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Junction created without elevation
+        shell: pwsh
+        run: |
+          node -e "
+            const fs=require('fs'), os=require('os'), path=require('path');
+            const d=fs.mkdtempSync(path.join(os.tmpdir(),'jt-'));
+            const target=path.join(d,'target'); fs.mkdirSync(target);
+            fs.writeFileSync(path.join(target,'f.txt'),'hi');
+            const link=path.join(d,'link');
+            fs.symlinkSync(target,link,'junction');
+            const st=fs.lstatSync(link);
+            if(!st.isSymbolicLink()) { console.error('not a link'); process.exit(1); }
+            if(fs.readFileSync(path.join(link,'f.txt'),'utf8')!=='hi'){console.error('unreadable');process.exit(1);}
+            console.log('junction ok, readlink ->', fs.readlinkSync(link));
+          "
+          whoami
+          Write-Host "Elevated: $((New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
+
+      - name: schtasks register and remove
+        shell: pwsh
+        run: |
+          schtasks /Create /TN CiProbeTask /TR "cmd /c echo hi" /SC DAILY /ST 07:30 /F
+          schtasks /Query /TN CiProbeTask /FO LIST | Select-String "TaskName","Next Run Time"
+          schtasks /Delete /TN CiProbeTask /F
+          if (schtasks /Query /TN CiProbeTask 2>$null) { throw "task survived deletion" }
+          Write-Host "schtasks register and remove ok"
+
+      - name: which() uses `where` on Windows
+        shell: pwsh
+        run: |
+          node --input-type=module -e "
+            const { which, has, LINK_TYPE, PLATFORM } = await import('./lib/platform.mjs');
+            console.log('PLATFORM  :', PLATFORM);
+            console.log('LINK_TYPE :', LINK_TYPE);
+            console.log('which node:', which('node'));
+            console.log('has(nope) :', has('definitely-not-a-real-command-xyz'));
+            if (LINK_TYPE !== 'junction') { console.error('wrong link type'); process.exit(1); }
+            if (!which('node')) { console.error('which() failed to find node'); process.exit(1); }
+            if (has('definitely-not-a-real-command-xyz')) { console.error('has() false positive'); process.exit(1); }
+          "
