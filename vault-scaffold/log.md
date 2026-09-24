@@ -4,7 +4,7 @@ summary: Append-only record of every ingest and maintenance run.
 type: moc
 lifecycle: stable
 tags: [meta]
-updated: 2026-09-25
+updated: REPLACE_DATE
 ---
 
 # Wiki Log

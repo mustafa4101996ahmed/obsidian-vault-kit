@@ -4,7 +4,7 @@ summary: Central map of this vault — every page, grouped by zone.
 type: moc
 lifecycle: stable
 tags: [meta]
-updated: 2026-09-25
+updated: REPLACE_DATE
 last_ingest: null
 ---
 

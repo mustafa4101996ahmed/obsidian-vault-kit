@@ -1,11 +1,11 @@
 {
   "_meta": {
-    "created": "2026-09-25",
+    "created": "REPLACE_DATE",
     "vault_path": "REPLACE_VAULT",
     "version": "1",
     "last_ingest_at": null,
     "last_mode": null,
-    "updated": "2026-09-25"
+    "updated": "REPLACE_DATE"
   },
   "sources": []
 }

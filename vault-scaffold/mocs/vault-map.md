@@ -4,7 +4,7 @@ summary: What each folder in this vault is for, and how to decide where a new pa
 type: moc
 lifecycle: stable
 tags: [meta]
-updated: 2026-09-25
+updated: REPLACE_DATE
 ---
 
 # Vault Map

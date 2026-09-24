@@ -4,7 +4,7 @@ summary: Pages touched most recently — the working set.
 type: moc
 lifecycle: stable
 tags: [meta]
-updated: 2026-09-25
+updated: REPLACE_DATE
 ---
 
 # Hot Context
