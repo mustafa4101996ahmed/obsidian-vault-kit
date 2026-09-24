@@ -1,0 +1,27 @@
+<svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vault kit">
+  <title>Obsidian vault kit</title>
+
+  <!-- Edges first, so nodes sit on top of them. Colours are mid-tone throughout so the
+       mark reads on both the light and the dark GitHub theme without a background plate. -->
+  <g stroke-linecap="round" opacity="0.55">
+    <path d="M26 26 L26 9"    stroke="#F1C40F" stroke-width="2"/>
+    <path d="M26 26 L41 17.5" stroke="#4A90D9" stroke-width="2"/>
+    <path d="M26 26 L41 34.5" stroke="#9B59B6" stroke-width="2"/>
+    <path d="M26 26 L26 43"   stroke="#27AE60" stroke-width="2"/>
+    <path d="M26 26 L11 34.5" stroke="#E67E22" stroke-width="2"/>
+    <path d="M26 26 L11 17.5" stroke="#16A085" stroke-width="2"/>
+  </g>
+
+  <!-- The spokes: one per vault zone, in the same palette the graph view uses. -->
+  <circle cx="26" cy="9"    r="4"   fill="#F1C40F"/>
+  <circle cx="41" cy="17.5" r="4"   fill="#4A90D9"/>
+  <circle cx="41" cy="34.5" r="4"   fill="#9B59B6"/>
+  <circle cx="26" cy="43"   r="4"   fill="#27AE60"/>
+  <circle cx="11" cy="34.5" r="4"   fill="#E67E22"/>
+  <circle cx="11" cy="17.5" r="4"   fill="#16A085"/>
+
+  <!-- The hub. -->
+  <circle cx="26" cy="26" r="6.5" fill="#1F2933"/>
+  <circle cx="26" cy="26" r="6.5" fill="none" stroke="#8C9BA5" stroke-width="1.5"/>
+  <circle cx="26" cy="26" r="2.2" fill="#F5F7FA"/>
+</svg>
