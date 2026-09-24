@@ -4,20 +4,27 @@
 
 # Obsidian Vault Kit
 
-**A knowledge vault Claude Code maintains for you.** Feed it documents and it writes linked,
-filed notes. Use Claude Code normally and it mines your own sessions for whatever was worth
-keeping.
+**Everything you worked out with Claude Code, turned into a knowledge graph you can
+query.** Point it at a document and it writes linked, filed notes. Use Claude Code
+normally and it mines your own sessions for whatever was worth keeping, on its own,
+once a day.
 
 [![CI](https://github.com/mustafa4101996ahmed/obsidian-vault-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafa4101996ahmed/obsidian-vault-kit/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/licence-MIT-007ec6)](LICENSE)
 ![Node 18+](https://img.shields.io/badge/node-18%2B-417e38)
 ![macOS, Linux, Windows](https://img.shields.io/badge/macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-verified-0a7ea4)
-![Obsidian](https://img.shields.io/badge/Obsidian-vault-7c3aed)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-0-6b7785)
 
 </div>
 
 <p align="center">
-  <img src="docs/images/install.svg" alt="The installer's dry run: each step it would take, from creating the vault through linking seven skills and registering the Stop hook, ending in zero changes made" width="820">
+  <img src="docs/images/graph-after.svg" alt="The vault's link graph after ingesting five documents: thirteen notes across concepts, skills, synthesis and hub zones, connected by thirty-five links, with clusters around software design and knowledge management joined by a synthesis note" width="820">
+</p>
+
+<p align="center">
+  <em>A real vault after five documents went in. It started with five seed pages and eight links.<br>
+  Rendered from the actual files by
+  <a href="docs/images/make-graph.mjs"><code>make-graph.mjs</code></a>, not drawn by hand.</em>
 </p>
 
 ---
@@ -31,6 +38,24 @@ keeping.
 ## How it works
 
 You drop a document in, or you simply use Claude Code. Either way the vault fills up.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/graph-before.svg" alt="A fresh vault: five seed pages, eight links, nothing ingested" width="100%"></td>
+<td width="50%"><img src="docs/images/graph-after.svg" alt="The same vault after five documents: thirteen notes, thirty-five links, four zones" width="100%"></td>
+</tr>
+<tr>
+<td align="center"><sub><b>A fresh install.</b> Five seed pages.</sub></td>
+<td align="center"><sub><b>Five documents later.</b> Thirteen notes, thirty-five links, four zones.</sub></td>
+</tr>
+</table>
+
+That second picture came from one command. Five Wikipedia articles went into `_raw/`,
+and `/obsidian-wiki-ingest` decided that Conway's Law, technical debt and the Unix
+philosophy were `concepts/`, that the Zettelkasten method was a `skills/` page, that two
+clusters had formed worth giving hub pages, and that one idea ran through both of them
+and deserved a `synthesis/` note. Nobody told it the taxonomy; it read `CLAUDE.md` and
+applied it.
 
 ```
   a document you drop in --+
@@ -65,6 +90,7 @@ push.
 | Skill links: symlink on Unix, junction on Windows | Verified, including reading through the link |
 | Desktop notifications | Degraded path verified; a real toast is untested |
 | Junctions without administrator rights | Documented behaviour, not yet proven unelevated |
+| The graphs above | Rendered from a real ingest of five public documents |
 
 ## Quick start
 
@@ -80,6 +106,10 @@ node install.mjs             # then do it
 
 Open a new terminal afterwards; the shell block only loads in a fresh one. Windows works the
 same way, with `$HOME` in place of `~`.
+
+<p align="center">
+  <img src="docs/images/install.svg" alt="The installer's dry run: each step it would take, from creating the vault through linking seven skills and registering the Stop hook, ending in zero changes made" width="700">
+</p>
 
 ```bash
 node install.mjs --vault "/somewhere/else"   # put the vault elsewhere

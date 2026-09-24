@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="470" viewBox="0 0 880 470" role="img" aria-label="A fresh vault: four seed pages, nothing ingested yet">
+  <title>A fresh vault: four seed pages, nothing ingested yet</title>
+  <rect width="880" height="470" rx="10" fill="#13171c"/>
+  <g stroke="#39414d" stroke-width="1.1" stroke-opacity="0.85">
+    <line x1="44.0" y1="58.6" x2="420.8" y2="44.7"/>
+    <line x1="44.0" y1="58.6" x2="63.3" y2="425.3"/>
+    <line x1="44.0" y1="58.6" x2="439.5" y2="399.4"/>
+    <line x1="63.3" y1="425.3" x2="420.8" y2="44.7"/>
+    <line x1="63.3" y1="425.3" x2="439.5" y2="399.4"/>
+    <line x1="420.8" y1="44.7" x2="836.0" y2="200.7"/>
+    <line x1="420.8" y1="44.7" x2="439.5" y2="399.4"/>
+    <line x1="439.5" y1="399.4" x2="836.0" y2="200.7"/>
+  </g>
+  <g>
+    <circle cx="44.0" cy="58.6" r="6.5" fill="#8C9BA5" stroke="#13171c" stroke-width="1.4"/>
+    <circle cx="63.3" cy="425.3" r="6.5" fill="#8C9BA5" stroke="#13171c" stroke-width="1.4"/>
+    <circle cx="420.8" cy="44.7" r="7.4" fill="#8C9BA5" stroke="#13171c" stroke-width="1.4"/>
+    <circle cx="439.5" cy="399.4" r="7.4" fill="#8C9BA5" stroke="#13171c" stroke-width="1.4"/>
+    <circle cx="836.0" cy="200.7" r="5.7" fill="#F1C40F" stroke="#13171c" stroke-width="1.4"/>
+  </g>
+  <g font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, sans-serif" font-size="11.5" fill="#c8d1d9">
+    <text x="420.8" y="30.3" text-anchor="middle">index</text>
+    <text x="439.5" y="420.8" text-anchor="middle">log</text>
+    <text x="44.0" y="45.0" text-anchor="middle">CLAUDE</text>
+    <text x="63.3" y="445.8" text-anchor="middle">hot</text>
+    <text x="836.0" y="188.0" text-anchor="middle">vault-map</text>
+  </g>
+    <circle cx="20" cy="454" r="4.5" fill="#F1C40F"/><text x="31" y="458" fill="#8b949e" font-size="11">mocs/</text>
+  <text x="862" y="458" text-anchor="end" fill="#8b949e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">5 notes, 8 links</text>
+</svg>
