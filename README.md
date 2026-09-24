@@ -195,5 +195,4 @@ adding a platform means editing a third file, the abstraction has leaked.
 
 ## Licence
 
-None yet, so all rights are reserved by default despite the repository being public. Add one
-before anyone is expected to reuse this.
+[MIT](LICENSE). Use it, fork it, ship it.
