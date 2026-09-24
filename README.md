@@ -10,7 +10,7 @@ Built for Windows with PowerShell. Needs Obsidian, Node.js and Claude Code.
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-git clone <REPO-URL> $HOME\obsidian-vault-kit
+git clone https://github.com/mustafa4101996ahmed/obsidian-vault-kit $HOME\obsidian-vault-kit
 cd $HOME\obsidian-vault-kit
 .\install.ps1 -DryRun     # changes nothing, shows everything it would do
 .\install.ps1

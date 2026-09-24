@@ -66,7 +66,7 @@ downloaded from the internet.
 Clone it and look before you leap. The dry run changes nothing and prints every file it would touch:
 
 ```powershell
-git clone <REPO-URL> $HOME\obsidian-vault-kit
+git clone https://github.com/mustafa4101996ahmed/obsidian-vault-kit $HOME\obsidian-vault-kit
 cd $HOME\obsidian-vault-kit
 .\install.ps1 -DryRun
 ```
@@ -341,7 +341,7 @@ git commit -m "Ingest: <what you fed it>"
 ```powershell
 # install
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-git clone <REPO-URL> $HOME\obsidian-vault-kit
+git clone https://github.com/mustafa4101996ahmed/obsidian-vault-kit $HOME\obsidian-vault-kit
 cd $HOME\obsidian-vault-kit
 .\install.ps1 -DryRun        # look first
 .\install.ps1                # then install
