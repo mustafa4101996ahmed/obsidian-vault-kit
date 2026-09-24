@@ -33,7 +33,10 @@ $Dir = Join-Path $env:USERPROFILE '.obsidian-wiki'
 $ConfigPath = Join-Path $Dir 'config.json'
 
 if (-not (Test-Path $ConfigPath)) {
-    Write-Error "No config at $ConfigPath. Run install.ps1 from the vault kit first."
+    # Write-Error is terminating under ErrorActionPreference='Stop', which buries this
+    # behind a stack trace and skips the exit below. Print plainly and leave.
+    [Console]::Error.WriteLine("No config at $ConfigPath.")
+    [Console]::Error.WriteLine("Run install.ps1 from the vault kit first.")
     exit 1
 }
 $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
@@ -57,15 +60,15 @@ $LogDir = Join-Path $Dir 'logs'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $Log = Join-Path $LogDir ("{0}.log" -f (Get-Date -Format 'yyyy-MM-dd'))
 
-function Write-Log {
+function Write-RunLog {
     param([string]$Message)
     $line = $Message
     Add-Content -LiteralPath $Log -Value $line -Encoding UTF8
     Write-Verbose $line
 }
 
-Write-Log ''
-Write-Log ("=== {0} run-ingest{1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $(if ($Force) { ' -Force' } else { '' }))
+Write-RunLog ''
+Write-RunLog ("=== {0} run-ingest{1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $(if ($Force) { ' -Force' } else { '' }))
 
 # ---------------------------------------------------------------------------
 # Notification. Best available notifier; never fatal if none exists.
@@ -92,13 +95,13 @@ function Send-Notification {
         Start-Sleep -Seconds 1
         $icon.Dispose()
     } catch {
-        Write-Log "(no notifier available; message was: $Message)"
+        Write-RunLog "(no notifier available; message was: $Message)"
     }
 }
 
 function Stop-WithFailure {
     param([string]$Reason)
-    Write-Log "FAILED: $Reason"
+    Write-RunLog "FAILED: $Reason"
     Send-Notification "Failed: $Reason. Log: $Log"
     Remove-Lock
     exit 1
@@ -126,13 +129,13 @@ function Get-Lock {
     } catch {
         $age = (Get-Date) - (Get-Item $Lock).CreationTime
         if ($age.TotalMinutes -gt $StaleLockMinutes) {
-            Write-Log ("clearing a stale lock ({0:N0} minutes old; a previous run crashed)" -f $age.TotalMinutes)
+            Write-RunLog ("clearing a stale lock ({0:N0} minutes old; a previous run crashed)" -f $age.TotalMinutes)
             Remove-Item $Lock -Recurse -Force
             New-Item -ItemType Directory -Path $Lock -ErrorAction Stop | Out-Null
             $script:HoldsLock = $true
             return $true
         }
-        Write-Log 'another run holds the lock; exiting'
+        Write-RunLog 'another run holds the lock; exiting'
         return $false
     }
 }
@@ -150,12 +153,12 @@ try {
                         -Filter '.lock' -ErrorAction SilentlyContinue)
     }
     if ($otherLocks.Count -gt 0) {
-        Write-Log ("another vault writer holds {0}; exiting with work still pending" -f $otherLocks[0].FullName)
+        Write-RunLog ("another vault writer holds {0}; exiting with work still pending" -f $otherLocks[0].FullName)
         exit 0
     }
 
     if (-not (Test-Path $PendingFlag) -and -not $Force) {
-        Write-Log 'nothing pending'
+        Write-RunLog 'nothing pending'
         exit 0
     }
 
@@ -165,7 +168,7 @@ try {
     # -----------------------------------------------------------------------
     if (-not (Test-Path $PendingSessions)) { New-Item -ItemType File -Path $PendingSessions | Out-Null }
     $mark = @(Get-Content -LiteralPath $PendingSessions -ErrorAction SilentlyContinue).Count
-    Write-Log "pending turns at start: $mark"
+    Write-RunLog "pending turns at start: $mark"
 
     Set-Content -LiteralPath $RunStarted -Value (Get-Date -Format 'o') -Encoding UTF8
     $startStamp = (Get-Item $RunStarted).LastWriteTimeUtc
@@ -203,7 +206,7 @@ Use the wiki-history-ingest skill with the argument claude, in append mode: inge
     $emptyIn = Join-Path $Dir '.empty-stdin'
     Set-Content -LiteralPath $emptyIn -Value '' -NoNewline -Encoding UTF8
 
-    Write-Log "starting claude (session $sid, model $Model)"
+    Write-RunLog "starting claude (session $sid, model $Model)"
     Push-Location -LiteralPath $Vault
     try {
         $proc = Start-Process -FilePath $ClaudeExe -ArgumentList $claudeArgs `
@@ -232,7 +235,7 @@ Use the wiki-history-ingest skill with the argument claude, in append mode: inge
                                    $_.LastWriteTime -gt $cutoff })
 
         if ($active.Count -eq 0) {
-            Write-Log "watchdog: session $sid wrote nothing for $StallMinutes minutes; stopping it"
+            Write-RunLog "watchdog: session $sid wrote nothing for $StallMinutes minutes; stopping it"
             # A console child has no window to close, so there is no graceful signal
             # to send on Windows. Ask once, then force.
             Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue
@@ -273,9 +276,9 @@ Use the wiki-history-ingest skill with the argument claude, in append mode: inge
     Set-Content -LiteralPath $PendingSessions -Value $remaining -Encoding UTF8
     if ($remaining.Count -eq 0) {
         Remove-Item $PendingFlag -Force -ErrorAction SilentlyContinue
-        Write-Log 'pending queue cleared'
+        Write-RunLog 'pending queue cleared'
     } else {
-        Write-Log ("{0} turn(s) arrived during the run and stay pending" -f $remaining.Count)
+        Write-RunLog ("{0} turn(s) arrived during the run and stay pending" -f $remaining.Count)
     }
 
     # -----------------------------------------------------------------------
@@ -295,7 +298,7 @@ Use the wiki-history-ingest skill with the argument claude, in append mode: inge
     }
     if (-not $headline) { $headline = 'history ingest finished' }
 
-    Write-Log "done: $headline"
+    Write-RunLog "done: $headline"
     Send-Notification $headline
 }
 finally {

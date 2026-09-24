@@ -57,7 +57,7 @@ function Already{ param([string]$m) $script:Skipped += $m; Write-Host "   = $m" 
 function Warn   { param([string]$m) $script:Warned  += $m; Write-Host "   ! $m" -ForegroundColor Yellow }
 function Plan   { param([string]$m) Write-Host "   ~ would: $m" -ForegroundColor Magenta }
 
-if ($DryRun) { Write-Host "DRY RUN — nothing will be written.`n" -ForegroundColor Magenta }
+if ($DryRun) { Write-Host "DRY RUN: nothing will be written.`n" -ForegroundColor Magenta }
 
 # ===========================================================================
 Step 'Checking prerequisites'
@@ -98,7 +98,7 @@ if ($vaultExisted) {
     $hasContent = @(Get-ChildItem -LiteralPath $VaultPath -Force -ErrorAction SilentlyContinue).Count -gt 0
     if ($hasContent) {
         Warn 'That folder already exists and is not empty.'
-        Warn 'Existing files are never overwritten — only missing ones are added.'
+        Warn 'Existing files are never overwritten; only missing ones are added.'
     }
 }
 
@@ -106,7 +106,7 @@ function Copy-IfAbsent {
     param([string]$Source, [string]$Destination)
     $srcRoot = (Resolve-Path $Source).Path
     foreach ($item in Get-ChildItem -LiteralPath $srcRoot -Recurse -Force) {
-        $rel  = $item.FullName.Substring($srcRoot.Length).TrimStart('\')
+        $rel  = $item.FullName.Substring($srcRoot.Length).TrimStart('\', '/')
         $dest = Join-Path $Destination $rel
         if ($item.PSIsContainer) {
             if (-not (Test-Path $dest)) {
@@ -208,7 +208,7 @@ foreach ($name in $skillNames) {
         if ($item.LinkType -in @('Junction', 'SymbolicLink')) {
             Already "skill $name (already linked)"
         } else {
-            Warn "skill $name exists as a real folder, not a link — left alone. Remove it and re-run to link."
+            Warn "skill $name exists as a real folder, not a link; left alone. Remove it and re-run to link."
         }
         continue
     }

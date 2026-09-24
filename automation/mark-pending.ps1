@@ -6,7 +6,7 @@
     and one line per turn so the runner can consume exactly what it covered and leave
     anything that arrived mid-run pending.
 
-    Must stay fast and must never fail — a hook that errors interrupts the session.
+    Must stay fast and must never fail: a hook that errors interrupts the session.
 #>
 try {
     $dir = Join-Path $env:USERPROFILE '.obsidian-wiki'
