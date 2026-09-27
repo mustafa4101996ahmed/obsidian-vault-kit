@@ -261,7 +261,13 @@ async function main() {
       windowsHide: true,
     });
 
-    const sink = (buf) => { try { fs.appendFileSync(LOG, buf); } catch { /* ignore */ } };
+    // The agent's own output goes to the log and, unless silenced, to the terminal.
+    // Sending it only to the log made `wiki-history` sit silent for minutes with the
+    // agent working invisibly behind it.
+    const sink = (buf) => {
+      try { fs.appendFileSync(LOG, buf); } catch { /* ignore */ }
+      if (!QUIET) process.stdout.write(buf);
+    };
     child.stdout.on('data', sink);
     child.stderr.on('data', sink);
 

@@ -90,6 +90,8 @@ push.
 | Skill links: symlink on Unix, junction on Windows | Verified, including reading through the link |
 | Desktop notifications | Accepted by the notifier on macOS and Linux. Actual on-screen delivery cannot be confirmed from a script and is not relied on |
 | Junctions without administrator rights | Probed in CI with a de-elevated basic-user token |
+| The full runner path, agent spawn to drained queue | Verified against a stub agent on all three platforms |
+| A clean run that changes nothing is a failure | Verified: the runner exits 1 and keeps the queue |
 | The graphs above | Rendered from a real ingest of five public documents |
 
 ## Quick start
