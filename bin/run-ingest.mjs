@@ -252,14 +252,26 @@ async function main() {
     '--disallowedTools', `Edit(${CLAUDE_HOME.split(path.sep).join('/')}/**)`,
   ];
 
+  // Windows will not let Node spawn a .cmd or .bat directly: the mitigation for the
+  // 2024 argument-injection issue blocks it, and npm's global installs are exactly
+  // those shims. Route them through the command interpreter, quoting the arguments
+  // ourselves so a prompt full of spaces survives intact.
+  let exe = claudeExe;
+  let spawnArgs = claudeArgs;
+  const spawnOpts = { cwd: vault, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true };
+
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(claudeExe)) {
+    const quote = (a) => `"${String(a).replace(/"/g, '""')}"`;
+    exe = process.env.COMSPEC || 'cmd.exe';
+    spawnArgs = ['/d', '/s', '/c', `"${[claudeExe, ...claudeArgs].map(quote).join(' ')}"`];
+    spawnOpts.windowsVerbatimArguments = true;
+    log(`routing through ${path.basename(exe)}: ${path.basename(claudeExe)} is a batch shim`);
+  }
+
   log(`starting claude (session ${sessionId}, model ${model})`);
 
   const exitCode = await new Promise((resolve) => {
-    const child = spawn(claudeExe, claudeArgs, {
-      cwd: vault,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
+    const child = spawn(exe, spawnArgs, spawnOpts);
 
     // The agent's own output goes to the log and, unless silenced, to the terminal.
     // Sending it only to the log made `wiki-history` sit silent for minutes with the
@@ -287,7 +299,7 @@ async function main() {
 
     child.on('error', (err) => {
       clearInterval(watchdog);
-      log(`could not start ${claudeExe}: ${err.message}`);
+      log(`could not start ${exe}: ${err.code || ''} ${err.message}`);
       resolve(-1);
     });
 

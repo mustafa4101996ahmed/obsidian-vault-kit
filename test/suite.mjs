@@ -466,6 +466,11 @@ console.log('stub agent: ingested 1 session');
 
   eq('runner exit code', r.code, 0);
   truthy('the agent was actually spawned', fs.existsSync(marker));
+  if (!fs.existsSync(marker)) {
+    // Without this the failure says only "not spawned", which hides the reason.
+    console.log('       runner said:');
+    for (const l of r.out.split('\n').filter(Boolean).slice(-8)) console.log(`         ${l}`);
+  }
   if (fs.existsSync(marker)) {
     const argv = fs.readFileSync(marker, 'utf8');
     has('agent received -p', argv, '-p');
