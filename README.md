@@ -88,8 +88,8 @@ push.
 | Lock, 20-minute watchdog, manifest-stamp check, pending arithmetic | Verified on all three |
 | launchd, systemd user timer, cron, Task Scheduler | Each registered and removed on its own platform |
 | Skill links: symlink on Unix, junction on Windows | Verified, including reading through the link |
-| Desktop notifications | Degraded path verified; a real toast is untested |
-| Junctions without administrator rights | Documented behaviour, not yet proven unelevated |
+| Desktop notifications | Accepted by the notifier on macOS and Linux. Actual on-screen delivery cannot be confirmed from a script and is not relied on |
+| Junctions without administrator rights | Probed in CI with a de-elevated basic-user token |
 | The graphs above | Rendered from a real ingest of five public documents |
 
 ## Quick start

@@ -49,7 +49,53 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Junction created without elevation
+      # The default runner account is an administrator, so a junction succeeding there
+      # proves nothing about an unelevated shell, which is what a real user has.
+      # runas /trustlevel:0x20000 drops to basic-user rights; if the junction still
+      # works there, the no-admin claim is earned rather than assumed.
+      - name: Junction without elevation (de-elevated via runas)
+        shell: pwsh
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP 'jprobe.js'
+          @'
+          const fs=require('fs'), os=require('os'), path=require('path');
+          const d=fs.mkdtempSync(path.join(os.tmpdir(),'jl-'));
+          const target=path.join(d,'t'); fs.mkdirSync(target);
+          fs.writeFileSync(path.join(target,'f.txt'),'hi');
+          const link=path.join(d,'l');
+          try {
+            fs.symlinkSync(target, link, 'junction');
+            const ok = fs.lstatSync(link).isSymbolicLink()
+                    && fs.readFileSync(path.join(link,'f.txt'),'utf8') === 'hi';
+            console.log(ok ? 'JUNCTION_OK' : 'JUNCTION_BAD');
+          } catch (e) { console.log('JUNCTION_FAIL ' + e.code); }
+          '@ | Set-Content -LiteralPath $probe -Encoding UTF8
+
+          $out = Join-Path $env:RUNNER_TEMP 'jprobe.txt'
+          Remove-Item $out -ErrorAction SilentlyContinue
+          $node = (Get-Command node).Source
+          # /trustlevel needs the whole thing as one quoted command string.
+          $cmd = "cmd /c `"`"$node`" `"$probe`" > `"$out`" 2>&1`""
+          Write-Host "running de-elevated: $cmd"
+          runas /trustlevel:0x20000 $cmd
+          Start-Sleep -Seconds 6
+
+          if (-not (Test-Path $out)) {
+            Write-Host "::warning::runas produced no output; could not de-elevate on this runner. Claim remains unproven."
+            exit 0
+          }
+          $res = (Get-Content -LiteralPath $out -Raw).Trim()
+          Write-Host "de-elevated result: $res"
+          if ($res -match 'JUNCTION_OK') {
+            Write-Host 'Junction created by a basic-user token. No-admin claim proven.'
+          } elseif ($res -match 'JUNCTION_FAIL|JUNCTION_BAD') {
+            throw "junction failed without elevation: $res"
+          } else {
+            Write-Host "::warning::unrecognised output, claim remains unproven: $res"
+          }
+          exit 0
+
+      - name: Junction created (elevated baseline)
         shell: pwsh
         run: |
           node -e "

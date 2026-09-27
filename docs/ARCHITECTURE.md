@@ -159,6 +159,7 @@ under two different source types.
 | Turn lost during a run | Never | Pending line arithmetic |
 | Claude hangs on a model call | The task still running hours later | 20-minute watchdog |
 | Stop hook throws | Immediately, and painfully | Hook swallows its own errors |
+| Notification silently not shown | Never, if you trusted the banner | Headline is written to the log before notify() is called |
 | Missing frontmatter `summary` | Note absent from the index though the file exists | `daily-update` reports it |
 | Orphan note, nothing links to it | You never find the note again | Graph health rules, rule 1 |
 
