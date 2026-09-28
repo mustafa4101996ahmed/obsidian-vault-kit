@@ -16,9 +16,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  CLAUDE_SETTINGS, CLAUDE_SKILLS, DEFAULT_VAULT, IS_WIN, WIKI_DIR,
+  DEFAULT_VAULT, IS_WIN, WIKI_DIR,
   has, platformLabel, which, writeConfig,
 } from './lib/platform.mjs';
+import { HOSTS, detectHosts, hostById, resolveEngine } from './lib/host.mjs';
 import { copyIfAbsent, installGitignore, installRunner, linkSkills, stampManifest, stampSeedDates } from './lib/vault.mjs';
 import { hookCommand, installStopHook, removeStopHook } from './lib/hooks.mjs';
 import { installShellBlocks, removeShellBlocks } from './lib/shell.mjs';
@@ -35,7 +36,9 @@ const UNINSTALL = argv.includes('--uninstall');
 const HELP = argv.includes('--help') || argv.includes('-h');
 const NO_GIT = argv.includes('--no-git');
 const VAULT = strArg('--vault') || DEFAULT_VAULT;
-const MODEL = strArg('--model') || 'sonnet';
+const HOST_SPEC = strArg('--host') || 'auto';
+const ENGINE_REQ = strArg('--engine');
+const MODEL = strArg('--model');   // was: || 'sonnet'. Per-host defaults now apply.
 const SCHEDULE = strArg('--schedule');
 
 function strArg(name) {
@@ -51,8 +54,10 @@ Obsidian vault kit installer
 
   --dry-run, -n         show what would happen, change nothing
   --vault <path>        where the vault goes (default: ${DEFAULT_VAULT})
+  --host <spec>         which agent to wire up: auto (default), claude, codex, both
+  --engine <id>         which agent runs the daily ingest (default: claude if present)
   --schedule <HH:MM>    also turn on the daily ingest at this time
-  --model <name>        model the ingest uses (default: sonnet)
+  --model <name>        model the ingest uses (default: sonnet for Claude, the host's own default for Codex)
   --no-git              skip initialising the vault as a git repo
   --uninstall           remove the hook, shell block, schedule and skill links
   --help, -h            this text
@@ -83,8 +88,10 @@ if (DRY) console.log(`${c.mg}DRY RUN: nothing will be written.${c.z}`);
 // ===========================================================================
 
 if (UNINSTALL) {
-  step('Removing the Claude Code Stop hook');
-  try { console.log(`   ${removeStopHook()}`); } catch (e) { warn(e.message); }
+  step('Removing Stop hooks');
+  for (const host of HOSTS) {
+    try { console.log(`   ${host.id}: ${removeStopHook(host)}`); } catch (e) { warn(e.message); }
+  }
 
   step('Removing the shell block');
   const sh = removeShellBlocks();
@@ -96,9 +103,10 @@ if (UNINSTALL) {
 
   step('Removing skill links');
   let removedLinks = 0;
-  if (fs.existsSync(CLAUDE_SKILLS)) {
-    for (const entry of fs.readdirSync(CLAUDE_SKILLS)) {
-      const p = path.join(CLAUDE_SKILLS, entry);
+  for (const host of HOSTS) {
+    if (!fs.existsSync(host.skillsDir)) continue;
+    for (const entry of fs.readdirSync(host.skillsDir)) {
+      const p = path.join(host.skillsDir, entry);
       try {
         const st = fs.lstatSync(p);
         if (!st.isSymbolicLink()) continue;
@@ -124,14 +132,50 @@ step('Checking prerequisites');
 console.log(`   platform: ${platformLabel()}`);
 console.log(`   node:     ${process.version} (${process.execPath})`);
 
-const claudeExe = which('claude');
-if (claudeExe) {
-  console.log(`   claude:   ${claudeExe}`);
-} else {
-  warn('claude is not on PATH. Install Claude Code first:');
-  warn('  npm install -g @anthropic-ai/claude-code');
-  warn('Install continues, but the automation cannot run until claude is available.');
+const detected = detectHosts();
+for (const d of detected) {
+  if (d.present) console.log(`   ${d.host.id.padEnd(9)}${d.exe || `${d.host.home} (no CLI on PATH)`}`);
 }
+
+let targets;
+if (HOST_SPEC === 'auto') {
+  targets = detected.filter((d) => d.present).map((d) => d.host);
+  if (!targets.length) {
+    warn('No agent CLI found. Install one:');
+    for (const h of HOSTS) warn(`  ${h.label}: ${h.installHint}`);
+    warn('Install continues, but the automation cannot run until one is available.');
+  }
+} else if (HOST_SPEC === 'both') {
+  targets = HOSTS.slice();
+} else {
+  const host = hostById(HOST_SPEC);
+  if (!host) {
+    console.error(`\nUnknown --host "${HOST_SPEC}". Known: auto, both, ${HOSTS.map((h) => h.id).join(', ')}`);
+    process.exit(1);
+  }
+  targets = [host];
+}
+
+// A hook wired to a missing CLI looks installed and never fires, so an explicit
+// request for an absent host is an error rather than a silent skip.
+if (HOST_SPEC !== 'auto') {
+  for (const host of targets) {
+    const row = detected.find((d) => d.host.id === host.id);
+    if (!row || !row.present) {
+      console.error(`\n${host.label} is not installed. Install it first:\n  ${host.installHint}`);
+      process.exit(1);
+    }
+  }
+}
+
+let engine;
+try {
+  engine = resolveEngine(detected.filter((d) => targets.includes(d.host)), ENGINE_REQ);
+} catch (err) {
+  console.error(`\n${err.message}`);
+  process.exit(1);
+}
+console.log(`   engine:   ${engine.label}`);
 
 const gitAvailable = has('git');
 if (!gitAvailable) warn('git is not on PATH; the vault will not be version-controlled.');
@@ -194,10 +238,19 @@ if (DRY) {
 } else {
   const r = installRunner(KIT_ROOT, WIKI_DIR, { dryRun: false });
   did(`runner installed to ${r.destBin}`);
+  const hosts = {};
+  for (const host of targets) {
+    const row = detected.find((d) => d.host.id === host.id);
+    const entry = { exe: (row && row.exe) || host.exe };
+    // Claude needs a model; Codex uses its own configured default unless told otherwise.
+    const model = MODEL && host.id === engine.id ? MODEL : (host.id === 'claude' ? 'sonnet' : null);
+    if (model) entry.model = model;
+    hosts[host.id] = entry;
+  }
   writeConfig({
     vaultPath: VAULT,
-    claudeExe: claudeExe || 'claude',
-    model: MODEL,
+    engine: engine.id,
+    hosts,
     platform: process.platform,
     installed: new Date().toISOString(),
   });
@@ -205,35 +258,49 @@ if (DRY) {
 }
 
 // ===========================================================================
-step('Linking skills into Claude Code');
+step(`Linking skills into ${targets.map((h) => h.label).join(' and ') || 'no agent'}`);
 // ===========================================================================
 // Junctions on Windows, symlinks elsewhere. Neither needs administrator rights.
 // The vault stays the single source of truth: edit the skill in the vault.
 
-const links = linkSkills(DRY ? SCAFFOLD : VAULT, { dryRun: DRY });
+const links = linkSkills(DRY ? SCAFFOLD : VAULT, targets, { dryRun: DRY });
 if (!links.length) warn('no skills found to link');
 for (const l of links) {
-  if (l.status === 'linked') did(`skill ${l.name}`);
-  else if (l.status === 'present') already(`skill ${l.name} (already linked)`);
-  else if (l.status === 'would-link') plan(`link skill ${l.name}`);
-  else if (l.status === 'copied') warn(`skill ${l.name} copied, not linked (${l.reason}); edits will not flow back`);
-  else if (l.status === 'real-directory') warn(`skill ${l.name} exists as a real folder; left alone`);
-  else if (l.status === 'points-elsewhere') warn(`skill ${l.name} links to ${l.points}; left alone`);
-  else warn(`skill ${l.name}: ${l.status} ${l.reason || ''}`);
+  const tag = `${l.host}/${l.name}`;
+  if (l.status === 'linked') did(`skill ${tag}`);
+  else if (l.status === 'present') already(`skill ${tag} (already linked)`);
+  else if (l.status === 'would-link') plan(`link skill ${tag}`);
+  else if (l.status === 'copied') warn(`skill ${tag} copied, not linked (${l.reason}); edits will not flow back`);
+  else if (l.status === 'real-directory') warn(`skill ${tag} exists as a real folder; left alone`);
+  else if (l.status === 'points-elsewhere') warn(`skill ${tag} links to ${l.points}; left alone`);
+  else warn(`skill ${tag}: ${l.status} ${l.reason || ''}`);
 }
 
 // ===========================================================================
-step('Registering the Claude Code Stop hook');
+step('Registering the Stop hook');
 // ===========================================================================
 
 const cmd = hookCommand(process.execPath, WIKI_DIR);
-try {
-  const r = installStopHook(cmd, { dryRun: DRY });
-  if (r === 'added') did(`Stop hook added (${CLAUDE_SETTINGS} backed up first)`);
-  else if (r === 'present') already('Stop hook (already present)');
-  else plan(`add Stop hook to ${CLAUDE_SETTINGS}`);
-} catch (err) {
-  warn(err.message);
+for (const host of targets) {
+  try {
+    const r = installStopHook(host, cmd, { dryRun: DRY });
+    if (r === 'added') did(`${host.label} Stop hook added (${host.hooksFile} backed up first)`);
+    else if (r === 'present') already(`${host.label} Stop hook (already present)`);
+    else plan(`add Stop hook to ${host.hooksFile}`);
+  } catch (err) {
+    warn(err.message);
+  }
+}
+
+// Settled by the Task 1 spike (which could not run codex here, so it took the
+// conservative branch): Codex enforces per-hook trust, so an installed hook is not
+// necessarily a firing hook, and a hook that never fires means the vault silently
+// stops growing. Say so rather than report success.
+const codexHookTrustNote = 'Codex requires this hook to be trusted before it fires. '
+  + 'Run `codex` once and approve the hook, then check ~/.codex/config.toml has a '
+  + 'trusted_hash for it. Until then the daily ingest is never triggered.';
+if (codexHookTrustNote && targets.some((h) => h.id === 'codex') && !DRY) {
+  warn(codexHookTrustNote);
 }
 
 // ===========================================================================
@@ -319,10 +386,10 @@ Next, in order:
                                          nexus-ai-chat-importer, infranodus-graph-view
   4. Ingest your first document:
          cd "${VAULT}"
-         claude
+         ${engine.exe}
          > /obsidian-wiki-ingest    then point it at a file in _raw/
 
-  5. Once you have some Claude history:
+  5. Once you have some ${engine.label} history:
          wiki-history --force
 
 Full walkthrough: SETUP-GUIDE.md

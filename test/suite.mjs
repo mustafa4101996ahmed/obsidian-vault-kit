@@ -346,8 +346,9 @@ head('9. Idempotency');
 head('10. Uninstall');
 {
   const notesBefore = countMd();
-  const { code } = install(['--uninstall']);
+  const { out, code } = install(['--uninstall']);
   eq('uninstall exit', code, 0);
+  has('per-host uninstall line for claude', out, 'claude: removed');
   eq('skill links removed', links().length, 0);
   eq('notes preserved', countMd(), notesBefore);
 
