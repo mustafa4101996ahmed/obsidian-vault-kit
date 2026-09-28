@@ -307,6 +307,32 @@ head('7. Installing for a chosen host');
   truthy('installing for an absent host fails', r2.code !== 0);
   has('and says how to install it', r2.out, 'npm install -g @openai/codex');
 
+  // An --engine that is genuinely installed but excluded by --host is a different
+  // failure than "not installed" -- confusing the two sends the user to `npm
+  // install` something they already have.
+  {
+    const { home: home4, env: env4 } = makeHome('vault-kit-engine-mismatch-');
+    fs.mkdirSync(path.join(home4, '.claude'), { recursive: true });
+    fs.mkdirSync(path.join(home4, '.codex'), { recursive: true });
+    const r5 = run(installer,
+      ['--vault', path.join(home4, 'v'), '--host', 'claude', '--engine', 'codex', '--no-git'], env4);
+    truthy('an installed-but-excluded engine fails', r5.code !== 0);
+    has('it says Codex is installed but not included', r5.out,
+      'is installed, but --host claude does not include it');
+    truthy('it does not also say Codex is not installed', !r5.out.includes('is not installed'));
+    fs.rmSync(home4, { recursive: true, force: true });
+  }
+
+  // A genuinely absent --engine still gets the install hint -- confirms the two
+  // messages above did not collapse into one.
+  {
+    const { home: home5, env: env5 } = makeHome('vault-kit-engine-absent-');
+    const r6 = run(installer, ['--vault', path.join(home5, 'v'), '--engine', 'codex', '--no-git'], env5);
+    truthy('a genuinely absent engine fails', r6.code !== 0);
+    has('and still carries the install hint', r6.out, 'npm install -g @openai/codex');
+    fs.rmSync(home5, { recursive: true, force: true });
+  }
+
   // Both hosts on one machine: two hook sets, two link sets, one source of truth.
   const { home: home3, env: env3 } = makeHome('vault-kit-both-');
   fs.mkdirSync(path.join(home3, '.claude'), { recursive: true });
@@ -339,12 +365,24 @@ head('7. Installing for a chosen host');
   hooks.hooks.PreToolUse = [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo theirs' }] }];
   fs.writeFileSync(hooksFile, JSON.stringify(hooks, null, 2));
 
+  // A symlink the user made by hand into a DIFFERENT vault must survive uninstall:
+  // matching by vault, not merely by the '.agents/skills' path shape, is the whole
+  // point of the fix. Junction on Windows, symlink elsewhere -- same rule linkSkills
+  // itself follows, so no admin rights are needed to create it here either.
+  const foreignVault = path.join(home, 'other-vault');
+  const foreignSkill = path.join(foreignVault, '.agents', 'skills', 'mine');
+  fs.mkdirSync(foreignSkill, { recursive: true });
+  fs.writeFileSync(path.join(foreignSkill, 'SKILL.md'), '---\nname: mine\ndescription: x\n---\n');
+  const foreignLink = path.join(home, '.codex', 'skills', 'mine');
+  fs.symlinkSync(foreignSkill, foreignLink, process.platform === 'win32' ? 'junction' : 'dir');
+
   const r3 = run(installer, ['--uninstall'], env);
   eq('uninstall exits clean', r3.code, 0);
   const left = JSON.parse(fs.readFileSync(hooksFile, 'utf8'));
   truthy('our Stop hook is gone', !left.hooks.Stop);
   truthy("their PreToolUse hook is not", Boolean(left.hooks.PreToolUse));
   truthy('codex skill links are gone', !fs.existsSync(path.join(home, '.codex', 'skills', 'wiki-agent')));
+  truthy('a foreign vault\'s symlink survives uninstall', fs.existsSync(foreignLink));
   truthy('the vault survives an uninstall', fs.existsSync(path.join(vault, 'index.md')));
 
   fs.rmSync(home, { recursive: true, force: true });

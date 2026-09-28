@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   DEFAULT_VAULT, IS_WIN, WIKI_DIR,
-  has, platformLabel, which, writeConfig,
+  has, platformLabel, readConfig, which, writeConfig,
 } from './lib/platform.mjs';
 import { HOSTS, detectHosts, hostById, resolveEngine } from './lib/host.mjs';
 import { copyIfAbsent, installGitignore, installRunner, linkSkills, stampManifest, stampSeedDates } from './lib/vault.mjs';
@@ -102,6 +102,12 @@ if (UNINSTALL) {
   for (const line of removeSchedule()) console.log(`   ${line}`);
 
   step('Removing skill links');
+  // Scope removal to the vault this install actually manages. Matching any path
+  // containing '.agents/skills' would also delete a link the user made by hand into
+  // a different vault, which uninstall has no business touching.
+  let vaultScope = null;
+  try { vaultScope = readConfig()?.vaultPath || null; } catch { /* unreadable config */ }
+
   let removedLinks = 0;
   for (const host of HOSTS) {
     if (!fs.existsSync(host.skillsDir)) continue;
@@ -111,7 +117,14 @@ if (UNINSTALL) {
         const st = fs.lstatSync(p);
         if (!st.isSymbolicLink()) continue;
         const target = fs.readlinkSync(p);
-        if (!target.includes(path.join('.agents', 'skills'))) continue;
+        // A relative target resolves against the link's own directory, not the
+        // process cwd — the same resolution lib/vault.mjs uses to detect
+        // points-elsewhere, so the two agree on what a link points at.
+        const absTarget = path.resolve(path.dirname(p), target);
+        const isOurs = vaultScope
+          ? absTarget.startsWith(path.resolve(vaultScope) + path.sep)
+          : target.includes(path.join('.agents', 'skills'));
+        if (!isOurs) continue;
         fs.rmSync(p, { recursive: true, force: true });
         removedLinks += 1;
       } catch { /* leave anything we cannot read */ }
@@ -165,6 +178,27 @@ if (HOST_SPEC !== 'auto') {
       console.error(`\n${host.label} is not installed. Install it first:\n  ${host.installHint}`);
       process.exit(1);
     }
+  }
+}
+
+// An engine has to be one of the hosts we are wiring up. Distinguish that from
+// "not installed": telling someone to install Codex when they already have it
+// sends them round a loop they have already been round.
+if (ENGINE_REQ) {
+  const wanted = hostById(ENGINE_REQ);
+  if (!wanted) {
+    console.error(`\nUnknown --engine "${ENGINE_REQ}". Known: ${HOSTS.map((h) => h.id).join(', ')}`);
+    process.exit(1);
+  }
+  if (!targets.some((h) => h.id === wanted.id)) {
+    const row = detected.find((d) => d.host.id === wanted.id);
+    if (row && row.present) {
+      console.error(`\n${wanted.label} is installed, but --host ${HOST_SPEC} does not include it.`);
+      console.error(`Use --host both, or --host ${wanted.id}, to make it the engine.`);
+    } else {
+      console.error(`\n${wanted.label} is not installed, so it cannot be the engine. Install it first:\n  ${wanted.installHint}`);
+    }
+    process.exit(1);
   }
 }
 
