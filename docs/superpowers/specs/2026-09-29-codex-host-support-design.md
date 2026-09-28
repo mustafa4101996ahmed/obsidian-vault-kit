@@ -247,26 +247,26 @@ point `cfg.hosts.codex.exe` at a `codex` stub. New assertions, ordered by what t
 - `README.md`: one requirements line naming which agent is needed. This is the file a new
   user reads first; it says that and nothing more.
 
-## Open risk, to settle before building
+## Open risk: Codex hook trust
 
 Codex records per-hook trust in `config.toml` (`enabled`, `trusted_hash`). Writing
-`~/.codex/hooks.json` may therefore leave the hook present but **untrusted**, and an
-untrusted Stop hook that never fires means the pending flag is never written and the
-vault silently stops growing — the worst failure class this kit has, the one the
-manifest-stamp guard exists to prevent elsewhere.
+`~/.codex/hooks.json` leaves the hook present but untrusted by default. An untrusted
+Stop hook never fires, the pending flag is never written, and the vault silently stops
+growing — the worst failure class this kit has.
 
-Codex ships a `--dangerously-bypass-hook-trust` flag, which confirms the trust gate is
-enforced rather than advisory. What the docs do not settle is whether a `command` hook
-written into `hooks.json` needs a one-time interactive approval before it fires, and the
-bypass flag does not help: it applies to invocations we control, not to the interactive
-sessions whose Stop event we need. The first implementation task is therefore a spike on a machine with
-Codex installed: write the hook, run a turn, confirm the flag appears. If approval is
-needed, `install.mjs` prints it as a required next step rather than reporting success —
-the same rule that makes the runner write the headline to the log before calling
-`notify()`.
+Codex ships a `--dangerously-bypass-hook-trust` flag, confirming the trust gate is
+enforced rather than advisory. The flag applies to invocations the kit controls, not to
+the interactive sessions whose Stop event the kit needs.
 
-`codex` is not installed on the development machine, so that spike needs either a Codex
-install or the brother's machine.
+A spike was planned to settle whether a hook written into `hooks.json` fires without
+interactive approval. `codex` is not installed on the development machine, so the spike
+was not run. The conservative branch is taken: when `install.mjs` wires up the Codex
+hook, it warns unconditionally with this message:
+
+> Codex requires this hook to be trusted before it fires. Run `codex` once and approve the hook, then check ~/.codex/config.toml has a trusted_hash for it. Until then the daily ingest is never triggered.
+
+If a spike on a machine with Codex installed shows the hook fires unprompted, this
+warning should be deleted.
 
 ## Decisions and why
 
