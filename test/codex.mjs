@@ -277,4 +277,78 @@ console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, hosts)));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+head('7. Installing for a chosen host');
+
+{
+  const { home, env } = makeHome('vault-kit-inst-');
+  const vault = path.join(home, 'Documents', 'Obsidian Vault');
+
+  // Pretend Codex is installed: a home directory is enough for detection.
+  fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+
+  const installer = path.resolve('install.mjs');
+  const r = run(installer, ['--vault', vault, '--host', 'codex', '--no-git'], env);
+  eq('install exits clean', r.code, 0);
+  has('it names the host it wired up', r.out, 'Codex CLI');
+
+  const cfg = JSON.parse(fs.readFileSync(path.join(home, '.obsidian-wiki', 'config.json'), 'utf8'));
+  eq('the engine is codex', cfg.engine, 'codex');
+  truthy('codex is in the hosts map', Boolean(cfg.hosts.codex));
+  truthy('claude was not wired up', !cfg.hosts.claude);
+  truthy('no model is pinned for codex', !cfg.hosts.codex.model);
+
+  truthy('the codex Stop hook exists', fs.existsSync(path.join(home, '.codex', 'hooks.json')));
+  truthy('skills were linked into codex', fs.existsSync(path.join(home, '.codex', 'skills', 'wiki-agent')));
+  truthy('nothing was written to ~/.claude', !fs.existsSync(path.join(home, '.claude', 'settings.json')));
+
+  // Naming an absent host is an error, not a silent skip.
+  const { home: home2, env: env2 } = makeHome('vault-kit-absent-');
+  const r2 = run(installer, ['--vault', path.join(home2, 'v'), '--host', 'codex', '--no-git'], env2);
+  truthy('installing for an absent host fails', r2.code !== 0);
+  has('and says how to install it', r2.out, 'npm install -g @openai/codex');
+
+  // Both hosts on one machine: two hook sets, two link sets, one source of truth.
+  const { home: home3, env: env3 } = makeHome('vault-kit-both-');
+  fs.mkdirSync(path.join(home3, '.claude'), { recursive: true });
+  fs.mkdirSync(path.join(home3, '.codex'), { recursive: true });
+  const vault3 = path.join(home3, 'v');
+  const r4 = run(installer, ['--vault', vault3, '--host', 'both', '--no-git'], env3);
+  eq('a dual-host install exits clean', r4.code, 0);
+
+  const cfg3 = JSON.parse(fs.readFileSync(path.join(home3, '.obsidian-wiki', 'config.json'), 'utf8'));
+  eq('both hosts are in the config', Object.keys(cfg3.hosts).sort().join(','), 'claude,codex');
+  eq('claude is the engine when both are present', cfg3.engine, 'claude');
+  eq('claude keeps a pinned model', cfg3.hosts.claude.model, 'sonnet');
+  truthy('codex still has none', !cfg3.hosts.codex.model);
+
+  for (const dir of ['.claude', '.codex']) {
+    const hooksName = dir === '.claude' ? 'settings.json' : 'hooks.json';
+    const h = JSON.parse(fs.readFileSync(path.join(home3, dir, hooksName), 'utf8'));
+    has(`${dir} got a Stop hook`, JSON.stringify(h.hooks.Stop), 'mark-pending.mjs');
+    truthy(`${dir} got skill links`, fs.existsSync(path.join(home3, dir, 'skills', 'wiki-agent')));
+  }
+  truthy('both link sets resolve to the one vault copy',
+    fs.realpathSync(path.join(home3, '.claude', 'skills', 'wiki-agent'))
+    === fs.realpathSync(path.join(home3, '.codex', 'skills', 'wiki-agent')));
+
+  fs.rmSync(home3, { recursive: true, force: true });
+
+  // Uninstall cleans the codex side and leaves an unrelated hook alone.
+  const hooksFile = path.join(home, '.codex', 'hooks.json');
+  const hooks = JSON.parse(fs.readFileSync(hooksFile, 'utf8'));
+  hooks.hooks.PreToolUse = [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo theirs' }] }];
+  fs.writeFileSync(hooksFile, JSON.stringify(hooks, null, 2));
+
+  const r3 = run(installer, ['--uninstall'], env);
+  eq('uninstall exits clean', r3.code, 0);
+  const left = JSON.parse(fs.readFileSync(hooksFile, 'utf8'));
+  truthy('our Stop hook is gone', !left.hooks.Stop);
+  truthy("their PreToolUse hook is not", Boolean(left.hooks.PreToolUse));
+  truthy('codex skill links are gone', !fs.existsSync(path.join(home, '.codex', 'skills', 'wiki-agent')));
+  truthy('the vault survives an uninstall', fs.existsSync(path.join(vault, 'index.md')));
+
+  fs.rmSync(home, { recursive: true, force: true });
+  fs.rmSync(home2, { recursive: true, force: true });
+}
+
 summary();
