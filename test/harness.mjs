@@ -22,8 +22,10 @@ export function ok(msg) { pass += 1; console.log(`  ${C.g}PASS${C.z}  ${msg}`); 
 export function no(msg) { fail += 1; failures.push(msg); console.log(`  ${C.r}FAIL${C.z}  ${msg}`); }
 export function na(msg) { skip += 1; console.log(`  ${C.y}SKIP${C.z}  ${msg}`); }
 
+// Strict equality prevents coercion bugs: String(number) would silently pass a number
+// vs string mismatch. All call sites compare like with like, so we tighten here.
 export function eq(label, actual, expected) {
-  if (actual === expected) ok(label);
+  if (actual === expected) ok(`${label} (${actual})`);
   else no(`${label} (expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)})`);
 }
 export function truthy(label, value) { value ? ok(label) : no(label); }
@@ -37,10 +39,10 @@ export function makeHome(tag = 'vault-kit-test-') {
   return { home, env: { ...process.env, HOME: home, USERPROFILE: home } };
 }
 
-export function run(script, args = [], env = process.env) {
+export function run(script, args = [], env = process.env, { timeout = 120000 } = {}) {
   try {
     const out = execFileSync(process.execPath, [script, ...args], {
-      encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'], timeout,
     });
     return { code: 0, out };
   } catch (err) {
