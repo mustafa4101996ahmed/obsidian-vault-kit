@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { C, eq, has, head, na, no, ok, run as runScript, summary, truthy } from './harness.mjs';
 
 const KIT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const INSTALLER = path.join(KIT, 'install.mjs');
@@ -41,40 +42,11 @@ const ENV = { ...process.env, HOME, USERPROFILE: HOME };
 
 // ---------------------------------------------------------------------------
 
-let pass = 0, fail = 0, skip = 0;
-const failures = [];
-const C = process.stdout.isTTY
-  ? { g: '\x1b[32m', r: '\x1b[31m', y: '\x1b[33m', c: '\x1b[36m', z: '\x1b[0m' }
-  : { g: '', r: '', y: '', c: '', z: '' };
-
-const head = (s) => console.log(`\n${C.c}=== ${s} ===${C.z}`);
-function ok(msg) { pass += 1; console.log(`  ${C.g}PASS${C.z}  ${msg}`); }
-function no(msg) { fail += 1; failures.push(msg); console.log(`  ${C.r}FAIL${C.z}  ${msg}`); }
-function na(msg) { skip += 1; console.log(`  ${C.y}SKIP${C.z}  ${msg}`); }
-
-function eq(label, actual, expected) {
-  if (String(actual) === String(expected)) ok(`${label} (${actual})`);
-  else no(`${label}: got ${JSON.stringify(String(actual))}, want ${JSON.stringify(String(expected))}`);
-}
-function truthy(label, value) { value ? ok(label) : no(label); }
-function has(label, haystack, needle) {
-  String(haystack).includes(needle) ? ok(label) : no(`${label} (missing ${JSON.stringify(needle)})`);
-}
-
-/** Run a script with the throwaway home. Returns { out, code }; never throws. */
-function run(script, args = []) {
-  try {
-    const out = execFileSync(process.execPath, [script, ...args], {
-      env: ENV, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120000,
-    });
-    return { out, code: 0 };
-  } catch (err) {
-    return {
-      out: `${err.stdout || ''}${err.stderr || ''}`,
-      code: typeof err.status === 'number' ? err.status : -1,
-    };
-  }
-}
+// head, ok, no, na, eq, truthy, has and the pass/fail/skip counters live in
+// harness.mjs now. Only this file's own run() survives here, as a one-line wrapper,
+// because it closes over ENV and harness.mjs's run() takes env as an argument instead
+// (a second suite may point it at a different throwaway home).
+const run = (script, args = []) => runScript(script, args, ENV);
 const install = (args = []) => run(INSTALLER, args);
 const ingest = (args = []) => run(RUNNER, args);
 
@@ -503,12 +475,6 @@ console.log('stub agent: ingested 1 session');
 // ===========================================================================
 
 if (!KEEP) fs.rmSync(HOME, { recursive: true, force: true });
-
-console.log(`\n${'-'.repeat(60)}`);
-console.log(`${process.platform}: ${C.g}${pass} passed${C.z}, ${fail ? C.r : ''}${fail} failed${C.z}, ${C.y}${skip} skipped${C.z}`);
-if (fail) {
-  console.log('\nFailures:');
-  for (const f of failures) console.log(`  - ${f}`);
-}
 if (KEEP) console.log(`\nTest home kept at ${HOME}`);
-process.exit(fail ? 1 : 0);
+
+summary();
