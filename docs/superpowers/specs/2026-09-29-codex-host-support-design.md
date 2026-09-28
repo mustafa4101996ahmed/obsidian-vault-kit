@@ -105,11 +105,15 @@ plus `--disallowedTools Edit(~/.claude/**)`. Codex has no per-command equivalent
 confines by sandbox. The Codex invocation is therefore:
 
 ```
-codex exec --json --sandbox workspace-write
-  -c sandbox_workspace_write.writable_roots='["<vault>"]'
-  -c sandbox_workspace_write.network_access=false
+codex exec --json --sandbox workspace-write --cd <vault> --skip-git-repo-check
   [-m <model>] "<prompt>"
 ```
+
+`workspace-write` makes the working directory writable, and `--cd <vault>` makes the vault
+the working directory, so no `-c sandbox_workspace_write.writable_roots=[…]` is needed —
+one less fragile TOML-array-through-the-shell to get wrong. `--skip-git-repo-check` is
+required because `--no-git` vaults are supported and `codex exec` otherwise refuses to run
+outside a repo. Network access is already off by default in `workspace-write`.
 
 Writes are confined to the vault, which achieves structurally what
 `--disallowedTools Edit(~/.claude/**)` achieves by enumeration. Reads are broader than the
@@ -251,8 +255,11 @@ untrusted Stop hook that never fires means the pending flag is never written and
 vault silently stops growing — the worst failure class this kit has, the one the
 manifest-stamp guard exists to prevent elsewhere.
 
-The docs do not settle whether a `command` hook from `hooks.json` needs a one-time
-interactive approval. The first implementation task is therefore a spike on a machine with
+Codex ships a `--dangerously-bypass-hook-trust` flag, which confirms the trust gate is
+enforced rather than advisory. What the docs do not settle is whether a `command` hook
+written into `hooks.json` needs a one-time interactive approval before it fires, and the
+bypass flag does not help: it applies to invocations we control, not to the interactive
+sessions whose Stop event we need. The first implementation task is therefore a spike on a machine with
 Codex installed: write the hook, run a turn, confirm the flag appears. If approval is
 needed, `install.mjs` prints it as a required next step rather than reporting success —
 the same rule that makes the runner write the headline to the log before calling
