@@ -119,6 +119,39 @@ console.log(JSON.stringify(readConfig()));
   eq('a new-shape host exe is respected', cfg2.hosts.codex.exe, '/usr/local/bin/codex');
   truthy('claude is not invented for a codex-only install', !cfg2.hosts.claude);
 
+  // An array hosts field is unusable and must not pass the guard.
+  fs.writeFileSync(path.join(wiki, 'config.json'), JSON.stringify({
+    vaultPath: '/v',
+    hosts: [],
+  }, null, 2));
+  const r3 = run(reader, [], env);
+  const cfg3 = JSON.parse(r3.out.trim().split('\n').pop());
+  truthy('hosts: [] is migrated to a plain object', typeof cfg3.hosts === 'object' && !Array.isArray(cfg3.hosts));
+  eq('hosts: [] gains a claude entry', cfg3.hosts.claude.exe, 'claude');
+  eq('hosts: [] engine defaults to claude', cfg3.engine, 'claude');
+
+  // An empty hosts object is self-contradictory: engine has no entry to point to.
+  fs.writeFileSync(path.join(wiki, 'config.json'), JSON.stringify({
+    vaultPath: '/v',
+    hosts: {},
+  }, null, 2));
+  const r4 = run(reader, [], env);
+  const cfg4 = JSON.parse(r4.out.trim().split('\n').pop());
+  eq('hosts: {} is migrated to have a claude entry', cfg4.hosts.claude.exe, 'claude');
+  eq('hosts: {} engine defaults to claude', cfg4.engine, 'claude');
+  truthy('the engine exists in hosts, not pointing at nothing', cfg4.hosts[cfg4.engine] !== undefined);
+
+  // Legacy configs without a model key must not gain a spurious model: undefined.
+  fs.writeFileSync(path.join(wiki, 'config.json'), JSON.stringify({
+    vaultPath: path.join(home, 'Documents', 'Obsidian Vault'),
+    claudeExe: '/usr/local/bin/claude',
+    platform: process.platform,
+    installed: '2026-01-01T00:00:00.000Z',
+  }, null, 2));
+  const r5 = run(reader, [], env);
+  const cfg5 = JSON.parse(r5.out.trim().split('\n').pop());
+  truthy('a legacy config without model does not get one', !('model' in cfg5.hosts.claude));
+
   fs.rmSync(home, { recursive: true, force: true });
 }
 
