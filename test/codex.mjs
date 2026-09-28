@@ -155,4 +155,49 @@ console.log(JSON.stringify(readConfig()));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+head('5. Stop hooks, per host');
+
+{
+  const { home, env } = makeHome('vault-kit-hook-');
+
+  // A hooks.json that already has an unrelated hook. Losing it would be the bug.
+  fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.codex', 'hooks.json'), JSON.stringify({
+    description: 'mine',
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo mine' }] }] },
+  }, null, 2));
+
+  const driver = path.join(home, 'hook.mjs');
+  fs.writeFileSync(driver, `
+import { hostById } from ${JSON.stringify(path.resolve('lib/host.mjs'))};
+import { installStopHook, removeStopHook, hookCommand } from ${JSON.stringify(path.resolve('lib/hooks.mjs'))};
+const host = hostById(process.argv[2]);
+const action = process.argv[3];
+const cmd = hookCommand(process.execPath, '/w');
+if (action === 'add') console.log(installStopHook(host, cmd));
+else console.log(removeStopHook(host));
+`);
+
+  eq('the codex hook is added', run(driver, ['codex', 'add'], env).out.trim(), 'added');
+  eq('adding twice is a no-op', run(driver, ['codex', 'add'], env).out.trim(), 'present');
+
+  const written = JSON.parse(fs.readFileSync(path.join(home, '.codex', 'hooks.json'), 'utf8'));
+  eq('the Stop event has one entry', written.hooks.Stop.length, 1);
+  has('the entry runs mark-pending', written.hooks.Stop[0].hooks[0].command, 'mark-pending.mjs');
+  eq('the hook is a command hook', written.hooks.Stop[0].hooks[0].type, 'command');
+  truthy('the unrelated PreToolUse hook survived', Boolean(written.hooks.PreToolUse));
+  eq('the description survived', written.description, 'mine');
+  truthy('hooks.json was backed up first',
+    fs.readdirSync(path.join(home, '.codex')).some((f) => f.startsWith('hooks.json.bak-')));
+
+  eq('the codex hook is removed', run(driver, ['codex', 'remove'], env).out.trim(), 'removed');
+  const after = JSON.parse(fs.readFileSync(path.join(home, '.codex', 'hooks.json'), 'utf8'));
+  truthy('removing ours leaves theirs alone', Boolean(after.hooks.PreToolUse));
+  truthy('the emptied Stop key is dropped', !after.hooks.Stop);
+
+  eq('removing from a host with no file says so', run(driver, ['claude', 'remove'], env).out.trim(), 'no-settings');
+
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 summary();
