@@ -127,8 +127,14 @@ head('2. Install');
   // The path has a space in it on every platform, which is the case most likely to
   // be mishandled by quoting.
   has('vault path contains a space', VAULT, 'Obsidian Vault');
-  if (!out.includes('claude is not on PATH')) ok('claude found on PATH');
-  else na('claude not on PATH (expected on a CI runner)');
+  if (out.includes('No agent CLI found')) {
+    na('no agent CLI on this machine (expected on a CI runner)');
+  } else {
+    // Detection must not merely stay silent. If the installer finds a host it has to
+    // name it, or a machine with nothing installed reads exactly like a working one
+    // and the user only finds out when the daily ingest never runs.
+    truthy('the installer names the agent it detected', /^\s+(claude|codex)\s+\S/m.test(out));
+  }
 }
 
 head('3. Skill links resolve, and are the right kind for the platform');
