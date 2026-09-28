@@ -38,6 +38,9 @@ jobs:
       - name: Suite
         run: node test/suite.mjs
 
+      - name: Codex host suite
+        run: node test/codex.mjs
+
   # A green Windows run is only meaningful if the Windows-specific paths actually
   # ran, rather than being skipped. Assert the ones that matter were exercised.
   windows-specifics:
