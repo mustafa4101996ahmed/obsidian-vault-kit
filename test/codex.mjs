@@ -75,4 +75,51 @@ threw = null;
 try { resolveEngine(both, 'gemini'); } catch (err) { threw = err.message; }
 truthy('requesting an unknown host throws', threw !== null);
 
+head('4. Config migration');
+
+{
+  const { home, env } = makeHome('vault-kit-cfg-');
+  const wiki = path.join(home, '.obsidian-wiki');
+  fs.mkdirSync(wiki, { recursive: true });
+
+  // The shape every existing install has on disk today.
+  fs.writeFileSync(path.join(wiki, 'config.json'), JSON.stringify({
+    vaultPath: path.join(home, 'Documents', 'Obsidian Vault'),
+    claudeExe: '/usr/local/bin/claude',
+    model: 'sonnet',
+    platform: process.platform,
+    installed: '2026-01-01T00:00:00.000Z',
+  }, null, 2));
+
+  // Read it in a child process, because platform.mjs resolves HOME at module load.
+  const reader = path.join(home, 'read.mjs');
+  fs.writeFileSync(reader, `
+import { readConfig } from ${JSON.stringify(path.resolve('lib/platform.mjs'))};
+console.log(JSON.stringify(readConfig()));
+`);
+  const r = run(reader, [], env);
+  eq('the reader exits clean', r.code, 0);
+  const cfg = JSON.parse(r.out.trim().split('\n').pop());
+
+  truthy('a legacy config gains a hosts map', Boolean(cfg.hosts));
+  eq('the legacy claudeExe becomes the claude host exe', cfg.hosts.claude.exe, '/usr/local/bin/claude');
+  eq('the legacy model becomes the claude host model', cfg.hosts.claude.model, 'sonnet');
+  eq('the engine defaults to claude', cfg.engine, 'claude');
+  truthy('no codex host is invented', !cfg.hosts.codex);
+  truthy('vaultPath survives', cfg.vaultPath.includes('Obsidian Vault'));
+
+  // A new-shape config is returned untouched.
+  fs.writeFileSync(path.join(wiki, 'config.json'), JSON.stringify({
+    vaultPath: '/v', engine: 'codex',
+    hosts: { codex: { exe: '/usr/local/bin/codex' } },
+  }, null, 2));
+  const r2 = run(reader, [], env);
+  const cfg2 = JSON.parse(r2.out.trim().split('\n').pop());
+  eq('a new-shape engine is respected', cfg2.engine, 'codex');
+  eq('a new-shape host exe is respected', cfg2.hosts.codex.exe, '/usr/local/bin/codex');
+  truthy('claude is not invented for a codex-only install', !cfg2.hosts.claude);
+
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 summary();
