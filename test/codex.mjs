@@ -200,4 +200,45 @@ else console.log(removeStopHook(host));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+head('6. Skill links, per host');
+
+{
+  const { home, env } = makeHome('vault-kit-link-');
+
+  const vault = path.join(home, 'v');
+  for (const s of ['wiki-agent', 'daily-update']) {
+    fs.mkdirSync(path.join(vault, '.agents', 'skills', s), { recursive: true });
+    fs.writeFileSync(path.join(vault, '.agents', 'skills', s, 'SKILL.md'), `---\nname: ${s}\ndescription: x\n---\n`);
+  }
+
+  const driver = path.join(home, 'link.mjs');
+  fs.writeFileSync(driver, `
+import { HOSTS } from ${JSON.stringify(path.resolve('lib/host.mjs'))};
+import { linkSkills } from ${JSON.stringify(path.resolve('lib/vault.mjs'))};
+console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, HOSTS)));
+`);
+  const r = run(driver, [], env);
+  eq('the linker exits clean', r.code, 0);
+  const rows = JSON.parse(r.out.trim().split('\n').pop());
+
+  eq('two skills times two hosts', rows.length, 4);
+  truthy('every row names its host', rows.every((x) => x.host === 'claude' || x.host === 'codex'));
+  eq('claude got both skills', rows.filter((x) => x.host === 'claude').length, 2);
+  eq('codex got both skills', rows.filter((x) => x.host === 'codex').length, 2);
+  truthy('all four linked', rows.every((x) => x.status === 'linked'));
+
+  for (const dir of ['.claude', '.codex']) {
+    const link = path.join(home, dir, 'skills', 'wiki-agent');
+    truthy(`${dir}/skills/wiki-agent exists`, fs.existsSync(link));
+    truthy(`${dir} link is a link, not a copy`, fs.lstatSync(link).isSymbolicLink());
+    has(`${dir} link resolves into the vault`, fs.realpathSync(link), path.join('.agents', 'skills'));
+  }
+
+  // Re-linking is idempotent.
+  const rows2 = JSON.parse(run(driver, [], env).out.trim().split('\n').pop());
+  truthy('a second run reports them present', rows2.every((x) => x.status === 'present'));
+
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 summary();
