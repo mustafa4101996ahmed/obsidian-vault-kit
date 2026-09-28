@@ -250,9 +250,9 @@ point `cfg.hosts.codex.exe` at a `codex` stub. New assertions, ordered by what t
 ## Open risk: Codex hook trust
 
 Codex records per-hook trust in `config.toml` (`enabled`, `trusted_hash`). Writing
-`~/.codex/hooks.json` leaves the hook present but untrusted by default. An untrusted
-Stop hook never fires, the pending flag is never written, and the vault silently stops
-growing — the worst failure class this kit has.
+`~/.codex/hooks.json` may therefore leave the hook present but untrusted, and an
+untrusted Stop hook that never fires means the pending flag is never written and the
+vault silently stops growing — the worst failure class this kit has.
 
 Codex ships a `--dangerously-bypass-hook-trust` flag, confirming the trust gate is
 enforced rather than advisory. The flag applies to invocations the kit controls, not to
