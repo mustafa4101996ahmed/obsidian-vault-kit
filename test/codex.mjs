@@ -241,4 +241,40 @@ console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, HOSTS)));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+{
+  const { home, env } = makeHome('vault-kit-link-fail-');
+
+  const vault = path.join(home, 'v');
+  fs.mkdirSync(path.join(vault, '.agents', 'skills', 'wiki-agent'), { recursive: true });
+  fs.writeFileSync(path.join(vault, '.agents', 'skills', 'wiki-agent', 'SKILL.md'), '---\nname: wiki-agent\ndescription: x\n---\n');
+
+  // A FILE where codex's skills directory needs to go makes mkdirSync throw
+  // portably (EEXIST here, ENOTDIR on some platforms) — a chmod-based block
+  // does not work on Windows and may not work when tests run as root.
+  fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.codex', 'skills'), 'not a directory');
+
+  const driver = path.join(home, 'link-fail.mjs');
+  fs.writeFileSync(driver, `
+import { linkSkills } from ${JSON.stringify(path.resolve('lib/vault.mjs'))};
+const hosts = [
+  { id: 'claude', skillsDir: ${JSON.stringify(path.join(home, '.claude', 'skills'))} },
+  { id: 'codex', skillsDir: ${JSON.stringify(path.join(home, '.codex', 'skills'))} },
+];
+console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, hosts)));
+`);
+  const r = run(driver, [], env);
+  eq('one host failing does not throw', r.code, 0);
+  const rows = JSON.parse(r.out.trim().split('\n').pop());
+
+  const claudeRows = rows.filter((x) => x.host === 'claude');
+  const codexRows = rows.filter((x) => x.host === 'codex');
+  truthy('the healthy host still linked', claudeRows.length === 1 && claudeRows[0].status === 'linked');
+  eq('exactly one row for the broken host', codexRows.length, 1);
+  eq('the broken host is reported host-failed', codexRows[0].status, 'host-failed');
+  truthy('the failure carries a reason', Boolean(codexRows[0].reason));
+
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 summary();
