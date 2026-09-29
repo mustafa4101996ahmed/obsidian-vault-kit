@@ -108,7 +108,15 @@ if (UNINSTALL) {
   let vaultScope = null;
   try { vaultScope = readConfig()?.vaultPath || null; } catch { /* unreadable config */ }
 
+  // Windows paths are case-insensitive, so `D:\Vault` and `d:\vault` name the same
+  // directory. Comparing the raw, differently-cased strings made a link's absolute
+  // target never startsWith() a --vault spelled with different case, so uninstall
+  // silently removed nothing and reported a clean "0 skill link(s) removed" -- which
+  // reads as normal instead of as the scope match having failed.
+  const norm = (p) => (IS_WIN ? path.resolve(p).toLowerCase() : path.resolve(p));
+
   let removedLinks = 0;
+  let sawSkillShapedLink = false;
   for (const host of HOSTS) {
     if (!fs.existsSync(host.skillsDir)) continue;
     for (const entry of fs.readdirSync(host.skillsDir)) {
@@ -121,16 +129,25 @@ if (UNINSTALL) {
         // process cwd — the same resolution lib/vault.mjs uses to detect
         // points-elsewhere, so the two agree on what a link points at.
         const absTarget = path.resolve(path.dirname(p), target);
+        const shapedLikeOurs = target.includes(path.join('.agents', 'skills'));
+        if (shapedLikeOurs) sawSkillShapedLink = true;
         const isOurs = vaultScope
-          ? absTarget.startsWith(path.resolve(vaultScope) + path.sep)
-          : target.includes(path.join('.agents', 'skills'));
+          ? norm(absTarget).startsWith(norm(vaultScope) + path.sep)
+          : shapedLikeOurs;
         if (!isOurs) continue;
         fs.rmSync(p, { recursive: true, force: true });
         removedLinks += 1;
       } catch { /* leave anything we cannot read */ }
     }
   }
-  console.log(`   ${removedLinks} skill link(s) removed`);
+  if (removedLinks === 0 && sawSkillShapedLink) {
+    // A silent zero is exactly how the case-sensitivity bug above hid. If nothing
+    // was removed despite seeing links shaped like ours, say so instead of reporting
+    // a clean no-op indistinguishable from "nothing to remove".
+    warn(`0 skill link(s) removed, though some pointed into .agents/skills -- check --vault matches how they were installed (path case matters on Windows)`);
+  } else {
+    console.log(`   ${removedLinks} skill link(s) removed`);
+  }
 
   console.log(`\n${c.gy}------------------------------------------------------------${c.z}`);
   console.log('Uninstalled. Your vault and its notes were not touched.');
@@ -292,6 +309,13 @@ if (DRY) {
     if (model) entry.model = model;
     hosts[host.id] = entry;
   }
+  // No agent was found, so the loop above ran zero times. Writing hosts: {} here is
+  // indistinguishable from a hand-edited or corrupted config -- lib/platform.mjs's
+  // own migration comment treats it that way -- and leaves `engine` pointing at a
+  // host with no entry. Give it a placeholder entry instead of an empty map.
+  if (!targets.length) {
+    hosts[engine.id] = { exe: engine.exe, ...(engine.defaultModel && { model: engine.defaultModel }) };
+  }
   writeConfig({
     vaultPath: VAULT,
     engine: engine.id,
@@ -344,7 +368,10 @@ for (const host of targets) {
 const codexHookTrustNote = 'Codex requires this hook to be trusted before it fires. '
   + 'Run `codex` once and approve the hook, then check ~/.codex/config.toml has a '
   + 'trusted_hash for it. Until then the daily ingest is never triggered.';
-if (codexHookTrustNote && targets.some((h) => h.id === 'codex') && !DRY) {
+// --dry-run promises "show everything, change nothing" -- this is the one caveat a
+// user most needs before committing to wiring Codex up, so it must not be the one
+// warning a dry run hides.
+if (codexHookTrustNote && targets.some((h) => h.id === 'codex')) {
   warn(codexHookTrustNote);
 }
 
@@ -428,15 +455,23 @@ Next, in order:
   2. Open the vault in Obsidian          "Open folder as vault":
                                          ${VAULT}
   3. Install the two community plugins   Settings > Community plugins > Browse:
-                                         nexus-ai-chat-importer, infranodus-graph-view
-  4. Ingest your first document:
+                                         nexus-ai-chat-importer, infranodus-graph-view`);
+  // Steps 4 and 5 name a specific agent CLI, so they only make sense once one was
+  // actually wired up. Printing them anyway told a user with nothing installed to
+  // run `claude` and gather "some Claude Code history" that could never arrive (F6).
+  if (targets.length) {
+    console.log(`  4. Ingest your first document:
          cd "${VAULT}"
          ${engine.exe}
          > /obsidian-wiki-ingest    then point it at a file in _raw/
 
   5. Once you have some ${engine.label} history:
-         wiki-history --force
-
+         wiki-history --force`);
+  } else {
+    console.log(`  4. Install an agent CLI, then re-run install.mjs to wire it up:
+${HOSTS.map((h) => `         ${h.installHint}`).join('\n')}`);
+  }
+  console.log(`
 Full walkthrough: SETUP-GUIDE.md
 `);
 }
