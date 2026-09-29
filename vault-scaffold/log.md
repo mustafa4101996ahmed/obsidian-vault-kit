@@ -12,12 +12,14 @@ updated: REPLACE_DATE
 Append-only. One line per run, newest at the bottom. This is the audit trail: when something in the
 vault looks wrong, the answer is usually the last few lines here.
 
-Line formats:
+Line formats (each real entry is a "- " bullet starting with a bracketed timestamp,
+shown here without the bullet so this example can never be mistaken for one):
 
 ```
-- [TIMESTAMP] CLAUDE-HISTORY sessions=N memory=N pages_created=N pages_updated=N
-- [TIMESTAMP] DOC-INGEST source="<path>" pages_created=N pages_updated=N
-- [TIMESTAMP] DAILY-UPDATE fresh=N stale=N missing=N index_added=N hot_refreshed=true orphans=N deadends=N
+[TIMESTAMP] CLAUDE-HISTORY sessions=N memory=N pages_created=N pages_updated=N
+[TIMESTAMP] CODEX_HISTORY_INGEST sessions=N pages_created=N
+[TIMESTAMP] DOC-INGEST source="<path>" pages_created=N pages_updated=N
+[TIMESTAMP] DAILY-UPDATE fresh=N stale=N missing=N index_added=N hot_refreshed=true orphans=N deadends=N
 ```
 
 ## Runs
