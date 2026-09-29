@@ -28,7 +28,7 @@ head('1. The runner, against a codex stub');
   fs.writeFileSync(worker, `
 import fs from 'node:fs';
 import path from 'node:path';
-fs.writeFileSync(${JSON.stringify(marker)}, process.argv.slice(2).join('\\n'));
+fs.writeFileSync(${JSON.stringify(marker)}, process.argv.slice(2).join('\\n') + '\\nINGEST_ENV=' + (process.env.OBSIDIAN_WIKI_INGEST || 'unset'));
 const vault = ${JSON.stringify(vault)};
 const mf = path.join(vault, '.manifest.json');
 const m = JSON.parse(fs.readFileSync(mf, 'utf8'));
@@ -71,6 +71,9 @@ console.log('stub codex: ingested 1 session');
     has('it was pointed at the vault', argv, '--cd');
     has('it was told to ingest codex history', argv, 'codex');
     truthy('no --session-id was passed', !argv.includes('--session-id'));
+    // Proves the self-trigger guard reaches the agent: its Stop hook inherits this, and
+    // mark-pending no-ops on it, so the ingest's own last turn cannot re-queue an ingest.
+    has('the agent was told this turn belongs to the ingest', argv, 'INGEST_ENV=1');
     truthy('no -p was passed', !argv.split('\n').includes('-p'));
   }
   has('the headline came from a CODEX log line', r.out, 'CODEX_HISTORY_INGEST');

@@ -257,7 +257,15 @@ async function main() {
   // intact.
   let exe = engineExe;
   let spawnArgs = hostArgs;
-  const spawnOpts = { cwd: vault, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true };
+  // OBSIDIAN_WIKI_INGEST tells the Stop hook that the turn it is about to mark belongs
+  // to this run, not to the user. Without it the ingest's own last turn re-queues an
+  // ingest and the pending flag never clears again. See bin/mark-pending.mjs.
+  const spawnOpts = {
+    cwd: vault,
+    env: { ...process.env, OBSIDIAN_WIKI_INGEST: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  };
 
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(engineExe)) {
     const quote = (a) => `"${String(a).replace(/"/g, '""')}"`;
