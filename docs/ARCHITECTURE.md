@@ -211,10 +211,11 @@ One file knows which agent CLI it is talking to: `lib/host.mjs`. Add a descripto
 a `label`, the executable name (`exe`), the host's home directory, skills directory,
 hooks file, sessions directory, the `wiki-history-ingest` source name it maps to, the
 log tag its skill writes, an `installHint` (the install command shown when the host
-isn't found), a `defaultModel` (or `null` if the host runs fine without one), and a
-`buildArgs()` that produces an unattended invocation. Then ship a history-ingest skill
-for it, because the router will route to it by name and a missing skill means the daily
-run does nothing.
+isn't found), a `defaultModel` (or `null` if the host runs fine without one), an
+optional `installNotes` array (caveats install.mjs prints after wiring the host up --
+see the Codex trust row in the failure-modes table above), and a `buildArgs()` that
+produces an unattended invocation. Then ship a history-ingest skill for it, because the
+router will route to it by name and a missing skill means the daily run does nothing.
 
 Two things to get right, both learned the hard way on Codex:
 
