@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Claude Code Stop-hook target. Fires once per ended turn.
+// Stop-hook target, shared by both hosts (Claude Code and Codex CLI). Fires once per
+// ended turn.
 //
 // Records that there is work for the next ingest: a flag file the runner gates on,
 // and one line per turn so the runner can consume exactly what it covered and leave

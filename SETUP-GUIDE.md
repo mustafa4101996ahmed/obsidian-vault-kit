@@ -354,7 +354,7 @@ are version-controlled with your notes.
 | "the run stalled and was stopped" | The engine hung for 20 minutes | Usually transient. Re-run with `--force` |
 | Your agent can't see the skills | Links missing or shadowed | Re-run `node install.mjs`, read the skill warnings |
 | Nothing happens after a Codex turn | The hook isn't trusted, or isn't installed | Check it's in `~/.codex/hooks.json`, then check `~/.codex/config.toml` has a `trusted_hash` entry for it |
-| Codex exits complaining it isn't in a git repo | An old Codex build | The runner already passes `--skip-git-repo-check` — upgrade Codex |
+| Codex exits complaining it isn't in a git repo | Unconfirmed — possibly an older Codex build | The runner already passes `--skip-git-repo-check`; if you still see this, try upgrading Codex |
 | Codex ran but the vault wasn't written to | Wrong vault path, or a narrower sandbox | Check `vaultPath` in `~/.obsidian-wiki/config.json` is right — that's what `--cd` uses — and that nothing restricts the sandbox below `workspace-write` |
 | No notifications | No notifier installed | macOS works out of the box. Linux: install `libnotify`. Windows: `Install-Module BurntToast -Scope CurrentUser` |
 | Obsidian shows no notes | Wrong folder opened | Re-open, picking the folder containing `AGENTS.md` |

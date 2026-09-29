@@ -1,4 +1,4 @@
-# Claude Instructions — Obsidian Vault
+# Agent Instructions — Obsidian Vault
 
 This file is the contract between you and this vault. Read it before writing anything here.
 
@@ -32,8 +32,9 @@ They fill up as ingests run.
   .manifest.json                   ← ingest ledger; what has been read and when
 ```
 
-`.claude/skills/` in your home directory holds junctions pointing back at `.agents/skills/` here.
-The vault is the source of truth; edit a skill here, not there.
+`.claude/skills/` and `.codex/skills/` in your home directory hold links pointing back at
+`.agents/skills/` here, one set per host you have installed. The vault is the source of truth;
+edit a skill here, not there.
 
 ### Choosing a zone
 
@@ -53,13 +54,14 @@ When a page fits two zones, prefer the more durable one. Projects end; concepts 
 them. A lesson learned on one project belongs in `skills/` or `concepts/`, with the project page
 linking to it — not buried inside the project.
 
-## Claude Code Skills
+## Agent Skills
 
 Invoke with the `Skill` tool.
 
 | Skill | Purpose |
 |---|---|
 | `claude-history-ingest` | Mine Claude Code session history and memory files into wiki pages |
+| `codex-history-ingest` | Mine Codex CLI session history from `~/.codex/sessions/` into wiki pages |
 | `obsidian-wiki-ingest` | Ingest documents (PDFs, notes, exports) into the vault |
 | `wiki-agent` | Query, and targeted-ingest from, an agent's history on one topic |
 | `wiki-history-ingest` | Router: bulk-ingest new sessions from a named agent's history |
