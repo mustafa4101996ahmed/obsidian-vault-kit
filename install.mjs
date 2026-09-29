@@ -20,7 +20,7 @@ import {
   has, platformLabel, readConfig, which, writeConfig,
 } from './lib/platform.mjs';
 import { HOSTS, detectHosts, hostById, resolveEngine } from './lib/host.mjs';
-import { copyIfAbsent, installGitignore, installRunner, linkSkills, stampManifest, stampSeedDates } from './lib/vault.mjs';
+import { copyIfAbsent, installGitignore, installRunner, linkSkills, migrateContract, stampManifest, stampSeedDates } from './lib/vault.mjs';
 import { hookCommand, installStopHook, removeStopHook } from './lib/hooks.mjs';
 import { installShellBlocks, removeShellBlocks } from './lib/shell.mjs';
 import { availableSchedulers, installSchedule, removeSchedule, scheduleStatus } from './lib/schedule.mjs';
@@ -245,6 +245,11 @@ if (DRY) {
 } else {
   already(`vault complete (${copied.kept.length} file(s) already in place)`);
 }
+
+const contract = migrateContract(VAULT, { dryRun: DRY });
+if (contract === 'moved') did('CLAUDE.md moved to AGENTS.md, your edits kept (backup alongside)');
+else if (contract === 'both-present') already('AGENTS.md is the contract (CLAUDE.md left as it is)');
+else if (contract === 'would-move') plan('move CLAUDE.md to AGENTS.md and leave a pointer');
 
 const gi = installGitignore(SCAFFOLD, VAULT, { dryRun: DRY });
 if (gi === 'installed') did('.gitignore installed');

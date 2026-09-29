@@ -10,7 +10,7 @@ You are the automation layer that ingests documents into the Obsidian wiki proje
 
 ## Trigger
 - User says: "ingest to wiki", "add to wiki", or any phrasing that targets the obsidian-wiki repository.
-- Context: the working directory is the Obsidian vault itself (the folder holding `CLAUDE.md`,
+- Context: the working directory is the Obsidian vault itself (the folder holding `AGENTS.md`,
   `index.md` and `.manifest.json`). If it is not, stop and say so rather than writing pages into
   an unrelated repository.
 

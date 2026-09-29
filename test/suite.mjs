@@ -112,7 +112,9 @@ head('2. Install');
 {
   const { out, code } = install(['--vault', VAULT]);
   eq('exit code', code, 0);
-  eq('markdown notes in the vault', countMd(), 12);
+  // CLAUDE.md and AGENTS.md are two files now, not one -- migrateContract split the
+  // vault's single contract file into a pointer plus the real contract.
+  eq('markdown notes in the vault', countMd(), 13);
   eq('skill links', links().length, 7);
   truthy('.gitignore installed', fs.existsSync(path.join(VAULT, '.gitignore')));
   truthy('_gitignore not copied into the vault', !fs.existsSync(path.join(VAULT, '_gitignore')));

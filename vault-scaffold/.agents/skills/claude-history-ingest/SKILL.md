@@ -266,7 +266,7 @@ For each project with content, create or update the project overview at `project
 
 - Distill knowledge, not chronology. Don't write "on date X we discussed..." unless date context is essential.
 - Write the knowledge itself; use session as a source attribution in provenance, not in the prose.
-- **Frontmatter follows the vault's own standard, in `CLAUDE.md` — read it, do not invent fields.**
+- **Frontmatter follows the vault's own standard, in `AGENTS.md` — read it, do not invent fields.**
   As it stands, every knowledge page carries exactly:
   ```yaml
   title: Page Title
@@ -282,7 +282,7 @@ For each project with content, create or update the project overview at `project
   you change, including the ones you only added a link to.
 
   **Never write `base_confidence`, `lifecycle_changed`, `provenance` or `source` into frontmatter.**
-  `CLAUDE.md` names those four as pipeline artifacts and says log.md is where they belong. Earlier
+  `AGENTS.md` names those four as pipeline artifacts and says log.md is where they belong. Earlier
   versions of this skill asked for three of them; if you find them on a page you are editing, delete
   them.
 - Add provenance markers **in the body**, as inline footnote markers on the claim they qualify —
