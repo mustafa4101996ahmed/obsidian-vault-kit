@@ -220,7 +220,11 @@ async function main() {
   const engine = hostById(cfg.engine) || hostById('claude');
   const engineCfg = (cfg.hosts && cfg.hosts[engine.id]) || {};
   const engineExe = engineCfg.exe || engine.exe;
-  const model = engineCfg.model || null;
+  // Falls back to the host's own default, not a bare null: Claude has no usable
+  // default of its own and must always get a --model, while Codex's default is
+  // null on purpose (see lib/host.mjs) so a legacy config missing the key still
+  // behaves exactly as it did before Codex support existed.
+  const model = engineCfg.model || engine.defaultModel;
 
   // Every host the install wired up contributes a history source, whichever one
   // is doing the running. That is what makes one schedule right for a machine
