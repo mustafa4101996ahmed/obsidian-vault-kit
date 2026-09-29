@@ -208,8 +208,10 @@ further.
 ## Porting to another agent
 
 One file knows which agent CLI it is talking to: `lib/host.mjs`. Add a descriptor with
-the host's home directory, skills directory, hooks file, sessions directory, the
-`wiki-history-ingest` source name it maps to, the log tag its skill writes, and a
+a `label`, the executable name (`exe`), the host's home directory, skills directory,
+hooks file, sessions directory, the `wiki-history-ingest` source name it maps to, the
+log tag its skill writes, an `installHint` (the install command shown when the host
+isn't found), a `defaultModel` (or `null` if the host runs fine without one), and a
 `buildArgs()` that produces an unattended invocation. Then ship a history-ingest skill
 for it, because the router will route to it by name and a missing skill means the daily
 run does nothing.

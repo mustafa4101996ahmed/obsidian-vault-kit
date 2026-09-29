@@ -304,8 +304,10 @@ if (DRY) {
   for (const host of targets) {
     const row = detected.find((d) => d.host.id === host.id);
     const entry = { exe: (row && row.exe) || host.exe };
-    // Claude needs a model; Codex uses its own configured default unless told otherwise.
-    const model = MODEL && host.id === engine.id ? MODEL : (host.id === 'claude' ? 'sonnet' : null);
+    // The model default lives on the descriptor, not duplicated here: change
+    // CLAUDE.defaultModel in lib/host.mjs and the installer keeps up without a
+    // second edit. Hardcoding 'sonnet' here was two sources of truth for one fact.
+    const model = MODEL && host.id === engine.id ? MODEL : host.defaultModel;
     if (model) entry.model = model;
     hosts[host.id] = entry;
   }
@@ -361,18 +363,13 @@ for (const host of targets) {
   }
 }
 
-// Settled by the Task 1 spike (which could not run codex here, so it took the
-// conservative branch): Codex enforces per-hook trust, so an installed hook is not
-// necessarily a firing hook, and a hook that never fires means the vault silently
-// stops growing. Say so rather than report success.
-const codexHookTrustNote = 'Codex requires this hook to be trusted before it fires. '
-  + 'Run `codex` once and approve the hook, then check ~/.codex/config.toml has a '
-  + 'trusted_hash for it. Until then the daily ingest is never triggered.';
-// --dry-run promises "show everything, change nothing" -- this is the one caveat a
-// user most needs before committing to wiring Codex up, so it must not be the one
-// warning a dry run hides.
-if (codexHookTrustNote && targets.some((h) => h.id === 'codex')) {
-  warn(codexHookTrustNote);
+// Per-host install caveats -- Codex's hook-trust warning, currently the only one --
+// live on the descriptor as host.installNotes rather than hardcoded here by id, so
+// a third host with a caveat like this means editing lib/host.mjs, not this file.
+// Not gated on !DRY: --dry-run promises "show everything, change nothing," and this
+// is the one warning a user most needs before committing to wiring the host up.
+for (const host of targets) {
+  for (const note of host.installNotes ?? []) warn(note);
 }
 
 // ===========================================================================
