@@ -169,6 +169,7 @@ under two different source types.
 | Failure | How you notice | Guard |
 |---|---|---|
 | Run reports success, ingested nothing | Weeks later, wondering why the vault is thin | Manifest stamp check |
+| Engine ingests only its own history if the prompt loses a source | The vault accrues one agent's history and not the other's, while every run reports success | `CLAUDE.buildArgs` grants one `--add-dir` per source host's sessions directory, not just the engine's own |
 | Codex hook installed but never trusted | Weeks later: the vault stopped growing and nothing errored | Installer prints the trust step instead of reporting success |
 | Every notification read the log's own placeholder text | Indefinitely — every run's headline said the same generic line, whether or not the ingest worked | `log.md`'s line-format examples are dedented out of bullet form so they can't out-sort a real entry |
 | Two writers, one loses its updates | Never, without the check | Lock plus other-writer check |

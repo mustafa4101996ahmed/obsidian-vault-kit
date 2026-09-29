@@ -7,6 +7,7 @@ import path from 'node:path';
 import { eq, has, head, makeHome, run, summary, truthy } from './harness.mjs';
 
 const { HOSTS, hostById, detectHosts, resolveEngine } = await import('../lib/host.mjs');
+const { buildPrompt } = await import('../bin/run-ingest.mjs');
 
 head('1. The host registry');
 
@@ -65,6 +66,15 @@ truthy('Codex never gets a session id it has no flag for', !xa.includes('--sessi
 
 const xm = codex.buildArgs({ ...args, model: 'gpt-5-codex' });
 truthy('a configured model is passed with -m', xm.includes('-m') && xm.includes('gpt-5-codex'));
+
+// Group 1: an unreadable source produces no rows while the other pass still stamps
+// the manifest, so every source needs its own --add-dir, not just the engine's own.
+const twoSource = claude.buildArgs({ ...args, sourceHosts: [claude, codex] });
+truthy('two --add-dir flags, one per source session dir', twoSource.filter((a) => a === '--add-dir').length === 2 && twoSource.includes(claude.sessionsDir) && twoSource.includes(codex.sessionsDir));
+eq('single-source args still get exactly one --add-dir', ca.filter((a) => a === '--add-dir').length, 1);
+truthy('Codex never emits --add-dir: it would make session history writable',
+  !codex.buildArgs({ ...args, sourceHosts: [claude, codex] }).includes('--add-dir'));
+truthy('buildPrompt names claude before codex', /claude[\s\S]*codex/.test(buildPrompt(['claude', 'codex'])));
 
 head('3. Detection and engine choice');
 
