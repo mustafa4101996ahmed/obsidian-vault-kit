@@ -431,8 +431,13 @@ console.log('stub agent: ingested 1 session');
 
   const cfgPath = path.join(WIKI, 'config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-  const realExe = cfg.claudeExe;
-  cfg.claudeExe = stubExe;
+  // The runner reads cfg.hosts[engine.id].exe, not the legacy flat cfg.claudeExe --
+  // the installer always writes a hosts map, so readConfig's claudeExe migration never
+  // triggers here. Setting the old field would leave this test spawning the *real*
+  // claude binary headless against a throwaway vault: minutes of wall clock, real
+  // token spend, possibly a hang.
+  const realExe = cfg.hosts.claude.exe;
+  cfg.hosts.claude.exe = stubExe;
   fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 
   // Queue three turns, as the Stop hook would.
@@ -475,7 +480,7 @@ console.log('stub agent: ingested 1 session');
   has('a no-op run is reported as a failure', r2.out, 'without updating .manifest.json');
   eq('a failed run leaves the queue intact', lines(path.join(WIKI, '.pending_sessions')).length, 1);
 
-  cfg.claudeExe = realExe;
+  cfg.hosts.claude.exe = realExe;
   fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 }
 
