@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, has, head, KIT, makeHome, removeHome, run, summary, truthy } from './harness.mjs';
+import { eq, has, head, IS_WIN, KIT, lines, localDate, makeHome, removeHome, run, summary, truthy } from './harness.mjs';
 
 head('1. The runner, against a codex stub');
 
@@ -118,6 +118,123 @@ setTimeout(() => { console.log('too late'); }, 300000);
   // must never drop either: fail() exits before the queue is ever touched.
   eq('a killed run leaves the queue intact',
     fs.readFileSync(path.join(wiki, '.pending_sessions'), 'utf8').trim().split('\n').length, 2);
+
+  removeHome(home);
+}
+
+head('2. The full runner path, end to end, against a Claude stub');
+// The one seam nothing else covers: run-ingest.mjs actually spawning an agent, capturing
+// its output, seeing the manifest move, draining the pending queue and reporting.
+//
+// The agent is stubbed, not mocked away: a real executable that writes a manifest row and
+// a log.md line the way the skill does. Model judgement is not what this tests -- that is
+// covered by having run the real ingest on real documents. This tests the plumbing around
+// it, which is where the guards live.
+//
+// On Windows the stub is a .cmd, because that is the shape npm's global installs take. If
+// the runner cannot spawn one, this test is meant to fail and say so.
+{
+  const { home, env } = makeHome('vault-kit-claude-run-');
+  const vault = path.join(home, 'Documents', 'Obsidian Vault');
+  const wiki = path.join(home, '.obsidian-wiki');
+  const hook = path.join(wiki, 'bin', 'mark-pending.mjs');
+  const runHere = (script, args = []) => run(script, args, env);
+  const ingest = (args = []) => runHere(path.join(wiki, 'bin', 'run-ingest.mjs'), args);
+
+  // Install with auto-detection rather than --host claude: that works both here, where
+  // Claude is on PATH, and on a CI runner where neither agent exists and the installer
+  // wires up the default host instead. Naming an absent host is a hard error by design.
+  eq('install exits clean', runHere(path.join(KIT, 'install.mjs'), ['--vault', vault, '--no-git']).code, 0);
+  const stubDir = path.join(home, 'stub');
+  fs.mkdirSync(stubDir, { recursive: true });
+  const marker = path.join(home, 'stub-ran.txt');
+
+  // What the stub does: prove it was invoked, then touch the ledger and the log so the
+  // runner's verification has something real to find.
+  const workerJs = path.join(stubDir, 'agent.mjs');
+  fs.writeFileSync(workerJs, `
+import fs from 'node:fs';
+import path from 'node:path';
+fs.writeFileSync(${JSON.stringify(marker)}, process.argv.slice(2).join('\\n'));
+const vault = ${JSON.stringify(vault)};
+const mf = path.join(vault, '.manifest.json');
+const m = JSON.parse(fs.readFileSync(mf, 'utf8'));
+m.sources = m.sources || [];
+m.sources.push({
+  source_path: 'stub/session.jsonl', source_type: 'claude_transcript',
+  ingested_at: new Date().toISOString(), pages_created: ['concepts/stub.md'],
+});
+fs.writeFileSync(mf, JSON.stringify(m, null, 2));
+const log = path.join(vault, 'log.md');
+let t = fs.readFileSync(log, 'utf8');
+t = t.replace('# Wiki Log', '# Wiki Log\\n\\n- [' + new Date().toISOString() + '] CLAUDE-HISTORY sessions=1 pages_created=1');
+fs.writeFileSync(log, t);
+console.log('stub agent: ingested 1 session');
+`);
+
+  let stubExe;
+  if (IS_WIN) {
+    stubExe = path.join(stubDir, 'claude.cmd');
+    fs.writeFileSync(stubExe, `@echo off\r\n"${process.execPath}" "${workerJs}" %*\r\n`);
+  } else {
+    stubExe = path.join(stubDir, 'claude');
+    fs.writeFileSync(stubExe, `#!/bin/sh\nexec "${process.execPath}" "${workerJs}" "$@"\n`);
+    fs.chmodSync(stubExe, 0o755);
+  }
+
+  const cfgPath = path.join(wiki, 'config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  // The runner reads cfg.hosts[engine.id].exe, not the legacy flat cfg.claudeExe --
+  // the installer always writes a hosts map, so readConfig's claudeExe migration never
+  // triggers here. Setting the old field would leave this test spawning the *real*
+  // claude binary headless against a throwaway vault: minutes of wall clock, real
+  // token spend, possibly a hang.
+  const realExe = cfg.hosts.claude.exe;
+  cfg.hosts.claude.exe = stubExe;
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+
+  // Queue three turns, as the Stop hook would.
+  fs.rmSync(path.join(wiki, '.pending_sessions'), { force: true });
+  for (let i = 0; i < 3; i += 1) runHere(hook);
+  eq('queued turns before the run', lines(path.join(wiki, '.pending_sessions')).length, 3);
+
+  const manifestBefore = fs.statSync(path.join(vault, '.manifest.json')).mtimeMs;
+  const r = ingest();
+
+  eq('runner exit code', r.code, 0);
+  truthy('the agent was actually spawned', fs.existsSync(marker));
+  if (!fs.existsSync(marker)) {
+    // Without this the failure says only "not spawned", which hides the reason.
+    console.log('       runner said:');
+    for (const l of r.out.split('\n').filter(Boolean).slice(-8)) console.log(`         ${l}`);
+  }
+  if (fs.existsSync(marker)) {
+    const argv = fs.readFileSync(marker, 'utf8');
+    has('agent received -p', argv, '-p');
+    has('agent received the skill instruction', argv, 'wiki-history-ingest');
+    has('agent received --permission-mode', argv, 'acceptEdits');
+    has('agent received a session id', argv, '--session-id');
+  }
+  has("agent's output reached the terminal", r.out, 'stub agent: ingested 1 session');
+  const runLog = path.join(wiki, 'logs', `${localDate()}.log`);
+  has("agent's output reached the log file", fs.readFileSync(runLog, 'utf8'), 'stub agent: ingested 1 session');
+  truthy('manifest moved', fs.statSync(path.join(vault, '.manifest.json')).mtimeMs > manifestBefore);
+  truthy('manifest-stamp check passed (no failure reported)', !r.out.includes('without updating .manifest.json'));
+  has('headline taken from log.md', r.out, 'CLAUDE-HISTORY');
+  eq('pending queue drained', lines(path.join(wiki, '.pending_sessions')).length, 0);
+  truthy('pending flag cleared', !fs.existsSync(path.join(wiki, '.pending_ingest')));
+  truthy('lock released', !fs.existsSync(path.join(wiki, '.lock')));
+
+  // And the inverse: an agent that exits clean but changes nothing must be a failure.
+  fs.writeFileSync(workerJs, "console.log('stub agent: did nothing at all');\n");
+  runHere(hook);
+  const r2 = ingest();
+  eq('a no-op run exits non-zero', r2.code, 1);
+  has('a no-op run is reported as a failure', r2.out, 'without updating .manifest.json');
+  eq('a failed run leaves the queue intact', lines(path.join(wiki, '.pending_sessions')).length, 1);
+
+  cfg.hosts.claude.exe = realExe;
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 
   removeHome(home);
 }
