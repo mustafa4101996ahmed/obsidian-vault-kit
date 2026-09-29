@@ -11,7 +11,7 @@ once a day.
 
 [![CI](https://github.com/mustafa4101996ahmed/obsidian-vault-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafa4101996ahmed/obsidian-vault-kit/actions/workflows/ci.yml)
 [![MIT](https://img.shields.io/badge/licence-MIT-007ec6)](LICENSE)
-![Node 18+](https://img.shields.io/badge/node-18%2B-417e38)
+![Node 22+](https://img.shields.io/badge/node-22%2B-417e38)
 ![macOS, Linux, Windows](https://img.shields.io/badge/macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-verified-0a7ea4)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-0-6b7785)
 
@@ -54,7 +54,7 @@ That second picture came from one command. Five Wikipedia articles went into `_r
 and `/obsidian-wiki-ingest` decided that Conway's Law, technical debt and the Unix
 philosophy were `concepts/`, that the Zettelkasten method was a `skills/` page, that two
 clusters had formed worth giving hub pages, and that one idea ran through both of them
-and deserved a `synthesis/` note. Nobody told it the taxonomy; it read `CLAUDE.md` and
+and deserved a `synthesis/` note. Nobody told it the taxonomy; it read `AGENTS.md` and
 applied it.
 
 ```
@@ -96,8 +96,10 @@ push.
 
 ## Quick start
 
-Node 18 or newer, Obsidian, and Claude Code signed in once. Nothing else: the kit has no
-dependencies, and Node is already required by Claude Code itself.
+**You need** Node 22+, Obsidian, and one agent CLI — either
+[Claude Code](https://claude.com/claude-code) or [Codex](https://github.com/openai/codex). The
+installer detects which you have. If you have both, it wires up both and ingests both histories on
+one daily run. Nothing else: the kit itself has no dependencies.
 
 ```bash
 git clone https://github.com/mustafa4101996ahmed/obsidian-vault-kit ~/obsidian-vault-kit
@@ -128,11 +130,11 @@ node install.mjs --uninstall                 # remove everything except your not
 
 ```bash
 cp ~/Downloads/whatever.pdf ~/Documents/Obsidian\ Vault/_raw/
-cd ~/Documents/Obsidian\ Vault && claude
+cd ~/Documents/Obsidian\ Vault && claude   # or: codex
 #   /obsidian-wiki-ingest    then point it at the file
 ```
 
-Running Claude from inside the vault matters: that is how it picks up `CLAUDE.md` and the
+Running your agent from inside the vault matters: that is how it picks up `AGENTS.md` and the
 rules it must follow when writing.
 
 ```bash
@@ -175,9 +177,9 @@ Run these inside a Claude session, from the vault folder.
 | `/memory-bridge` | Compare what different AI tools contributed |
 | `/graph-colorize` | Extend the graph colours to your own tags |
 
-Skills live in `.agents/skills/` inside the vault, with links from `~/.claude/skills/`
-pointing at them. Edit the copy in the vault, so your changes are version-controlled
-alongside your notes.
+Skills live in `.agents/skills/` inside the vault, with links from `~/.claude/skills/` and
+`~/.codex/skills/` pointing at them, one set per host you have. Edit the copy in the vault,
+so your changes are version-controlled alongside your notes.
 
 ## Tests
 
@@ -222,7 +224,7 @@ adding a platform means editing a third file, the abstraction has leaked.
 |---|---|
 | [`SETUP-GUIDE.md`](SETUP-GUIDE.md) | Install to first ingest, per platform, with a troubleshooting table |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The five layers, why each guard exists, failure modes ranked by how long they hide |
-| [`vault-scaffold/CLAUDE.md`](vault-scaffold/CLAUDE.md) | The contract Claude follows: zones, frontmatter, graph rules, ingest ground rules |
+| [`vault-scaffold/AGENTS.md`](vault-scaffold/AGENTS.md) | The contract every agent follows: zones, frontmatter, graph rules, ingest ground rules (`CLAUDE.md` points to it, for Claude Code) |
 | [`vault-scaffold/mocs/vault-map.md`](vault-scaffold/mocs/vault-map.md) | What belongs in which folder, and how to decide |
 
 ## Licence

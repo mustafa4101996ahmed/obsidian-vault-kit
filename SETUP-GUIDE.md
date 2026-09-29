@@ -1,14 +1,18 @@
 # Setting up your knowledge vault
 
-This gets you an Obsidian vault that Claude Code reads, writes and keeps organised for you, plus the
-automation that feeds it. Works on macOS, Linux and Windows. Budget about 30 minutes, most of it
-downloads.
+This gets you an Obsidian vault that your agent — Claude Code, Codex, or both — reads, writes and
+keeps organised for you, plus the automation that feeds it. Works on macOS, Linux and Windows. Budget
+about 30 minutes, most of it downloads.
 
-The end state: you drop a document into a folder, tell Claude to ingest it, and it comes out as
-linked notes filed in the right place. Every Claude Code session you run afterwards gets mined once a
-day for anything worth keeping, without you asking.
+The end state: you drop a document into a folder, tell your agent to ingest it, and it comes out as
+linked notes filed in the right place. Every session you run afterwards gets mined once a day for
+anything worth keeping, without you asking.
 
 Commands below are shown for each platform. Pick your row and ignore the rest.
+
+The walkthrough is written around Claude Code — it is the tested path. If you're on Codex instead,
+swap `codex` in wherever you see `claude`; every skill and every step behaves the same either way,
+except where a section says otherwise.
 
 ---
 
@@ -24,11 +28,17 @@ newer. Check:
 node --version
 ```
 
-**Claude Code**, and sign in once so the automation isn't stopped later by a login prompt:
+**One agent CLI** — Claude Code, Codex, or both. The installer detects whichever you have and wires
+up each one it finds. Sign in once so the automation isn't stopped later by a login prompt:
 
 ```bash
+# Claude Code
 npm install -g @anthropic-ai/claude-code
 claude          # follow the browser login, then type /exit
+
+# Codex CLI
+npm install -g @openai/codex
+codex           # sign in, then exit
 ```
 
 **Git** is optional but recommended, so the vault has a history you can roll back. If you install it,
@@ -81,25 +91,48 @@ Options worth knowing:
 ```bash
 node install.mjs --vault "/some/other/path"   # put the vault elsewhere
 node install.mjs --schedule 19:00             # also turn on the daily ingest
-node install.mjs --model opus                 # change the model ingests use
+node install.mjs --model opus                 # change the model the engine uses
+node install.mjs --host claude                # wire up only Claude, even if Codex is also present
+node install.mjs --host both                  # wire up both, whichever one runs the daily ingest
+node install.mjs --engine codex               # Codex runs the daily ingest instead of Claude
 node install.mjs --no-git                     # skip git init
 node install.mjs --uninstall                  # remove everything except your notes
 ```
+
+`--host` defaults to `auto`: every agent CLI the installer finds on this machine. `--engine` defaults
+to Claude when both are present, since that is the path with the most miles on it. Naming a host that
+isn't installed is an error, not a silent skip — a hook wired to a missing CLI would sit there looking
+installed and never fire.
 
 ### What it just did
 
 | Where | What |
 |---|---|
-| `~/Documents/Obsidian Vault` | The vault: folders, `CLAUDE.md`, empty index, empty ingest ledger |
+| `~/Documents/Obsidian Vault` | The vault: folders, `AGENTS.md` (the contract; `CLAUDE.md` is a pointer to it), empty index, empty ingest ledger |
 | `~/.obsidian-wiki/` | The runner, its config, its logs |
-| `~/.claude/skills/` | Seven links pointing at the skills inside the vault |
-| `~/.claude/settings.json` | One `Stop` hook, so Claude records when a session ends |
+| `~/.claude/skills/`, `~/.codex/skills/` | One link per skill, in each host's skills directory you have |
+| `~/.claude/settings.json`, `~/.codex/hooks.json` | One `Stop` hook per host, so it records when a turn ends |
 | Your shell startup file | `wiki-history`, `wiki-log`, and a greeting showing pending work |
 
-Nothing was overwritten. `settings.json` and your shell startup file were both copied to a
-timestamped `.bak-` file before being touched.
+Nothing was overwritten. Each hook file and your shell startup file were copied to a timestamped
+`.bak-` file before being touched. If you had an edited `CLAUDE.md` already, it was moved to
+`AGENTS.md` (backed up alongside) rather than left stranded as the file only Claude Code would read.
 
 **Open a new terminal.** The shell block only loads in a fresh one.
+
+### If Codex is one of the hosts
+
+The installer prints this warning every time it wires up Codex, because the spike that would have
+confirmed Codex's runtime behaviour could not be run on the development machine — `codex` was not
+installed there:
+
+> Codex requires this hook to be trusted before it fires. Run `codex` once and approve the hook, then
+> check ~/.codex/config.toml has a trusted_hash for it. Until then the daily ingest is never
+> triggered.
+
+Do that now, before you get to step 7. Claude's hook needs no equivalent step. To check it worked:
+run one Codex turn from inside the vault, then look for `~/.obsidian-wiki/.pending_ingest` — if it's
+there, the hook fired and is trusted; if it never appears, re-read the warning above.
 
 ---
 
@@ -173,8 +206,8 @@ cp ~/Downloads/whatever.pdf ~/Documents/Obsidian\ Vault/_raw/
 Copy-Item "$HOME\Downloads\whatever.pdf" "$HOME\Documents\Obsidian Vault\_raw\"
 ```
 
-Start Claude from inside the vault. Running it from the vault folder matters: that's how it picks up
-`CLAUDE.md` and the vault's rules.
+Start your agent from inside the vault. Running it from the vault folder matters: that's how it picks
+up `AGENTS.md` and the vault's rules.
 
 ```bash
 cd ~/Documents/Obsidian\ Vault      # Windows: cd "$HOME\Documents\Obsidian Vault"
@@ -208,11 +241,12 @@ What did that document say about <something specific>? Check the vault, not the 
 
 ## 6. Your first history ingest
 
-The other half mines your own Claude Code sessions. Every time a turn ends, a hook records it. The
-ingest reads those transcripts plus the memory files Claude keeps per project, and writes up whatever
-is worth keeping.
+The other half mines your own agent sessions — Claude's, Codex's, or both if you have both installed.
+Every time a turn ends, a hook records it, per host. The ingest reads those transcripts (plus Claude's
+own per-project memory files, when Claude is one of the sources) and writes up whatever is worth
+keeping.
 
-You need some history first, so use Claude Code normally for a few days. Then:
+You need some history first, so use your agent normally for a few days. Then:
 
 ```bash
 wiki-history --force        # Windows PowerShell: wiki-history -Force
@@ -287,7 +321,7 @@ rules.
 
 ## 8. The seven skills
 
-Run these from inside the vault folder, in a Claude session.
+Run these from inside the vault folder, in an agent session.
 
 | Command | What it does |
 |---|---|
@@ -299,8 +333,9 @@ Run these from inside the vault folder, in a Claude session.
 | `/memory-bridge` | Compare what different AI tools contributed |
 | `/graph-colorize` | Extend the graph colours to your own tags |
 
-The skill files live in `.agents/skills/` inside the vault; `~/.claude/skills/` holds links pointing
-at them. Edit the copy in the vault, so your changes are version-controlled with your notes.
+The skill files live in `.agents/skills/` inside the vault; `~/.claude/skills/` and `~/.codex/skills/`
+hold links pointing at them, one set per host you have. Edit the copy in the vault, so your changes
+are version-controlled with your notes.
 
 ---
 
@@ -315,10 +350,13 @@ at them. Edit the copy in the vault, so your changes are version-controlled with
 | Log says "another run holds the lock" | A run is in progress | Wait. A lock over 3 hours old is cleared automatically |
 | "another vault writer holds ..." | Something else is writing the vault | Expected. Work stays queued for the next run |
 | "finished without updating .manifest.json" | The run did nothing | Read the log above that line. Don't re-run blind |
-| "the run stalled and was stopped" | Claude hung for 20 minutes | Usually transient. Re-run with `--force` |
-| Claude can't see the skills | Links missing or shadowed | Re-run `node install.mjs`, read the skill warnings |
+| "the run stalled and was stopped" | The engine hung for 20 minutes | Usually transient. Re-run with `--force` |
+| Your agent can't see the skills | Links missing or shadowed | Re-run `node install.mjs`, read the skill warnings |
+| Nothing happens after a Codex turn | The hook isn't trusted, or isn't installed | Check it's in `~/.codex/hooks.json`, then check `~/.codex/config.toml` has a `trusted_hash` entry for it |
+| Codex exits complaining it isn't in a git repo | An old Codex build | The runner already passes `--skip-git-repo-check` — upgrade Codex |
+| Codex ran but the vault wasn't written to | Wrong vault path, or a narrower sandbox | Check `vaultPath` in `~/.obsidian-wiki/config.json` is right — that's what `--cd` uses — and that nothing restricts the sandbox below `workspace-write` |
 | No notifications | No notifier installed | macOS works out of the box. Linux: install `libnotify`. Windows: `Install-Module BurntToast -Scope CurrentUser` |
-| Obsidian shows no notes | Wrong folder opened | Re-open, picking the folder containing `CLAUDE.md` |
+| Obsidian shows no notes | Wrong folder opened | Re-open, picking the folder containing `AGENTS.md` |
 | Schedule never fires | No scheduler found | The installer says so. Run `wiki-history` by hand, or install systemd/cron |
 
 Everything a run did is in `~/.obsidian-wiki/logs/<date>.log`. Read it before changing anything. Two
@@ -329,10 +367,12 @@ state files sit alongside: `.pending_ingest` (a flag saying work is waiting) and
 
 ## 10. Making it yours
 
-**`CLAUDE.md` in the vault** is the contract Claude follows. Different zones, different frontmatter,
-stricter rules — change them there and every skill follows.
+**`AGENTS.md` in the vault** is the contract every agent follows (`CLAUDE.md` is a pointer to it, so
+Claude Code finds it too). Different zones, different frontmatter, stricter rules — change them there
+and every skill follows.
 
-**The model.** Ingests default to Sonnet, the right trade for bulk work. Change `model` in
+**The model.** Claude ingests default to Sonnet, the right trade for bulk work; Codex uses its own
+configured default unless told otherwise. Change it under the relevant host in
 `~/.obsidian-wiki/config.json`, or re-run the installer with `--model`.
 
 **Graph colours.** Notes are coloured by folder out of the box, so the graph reads from day one with
