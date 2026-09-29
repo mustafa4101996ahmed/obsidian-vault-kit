@@ -38,6 +38,9 @@ jobs:
       - name: Suite
         run: node test/suite.mjs
 
+      - name: Host registry suite
+        run: node test/host.mjs
+
       - name: Codex host suite
         run: node test/codex.mjs
 

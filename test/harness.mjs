@@ -147,3 +147,14 @@ export function summary(label = process.platform) {
   }
   process.exit(fail ? 1 : 0);
 }
+
+/** Today in the machine's own timezone, matching how the kit names its log files. */
+export const localDate = () => {
+  const d = new Date(); const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+/** Non-blank lines of a file, or [] when it does not exist. */
+export const lines = (f) => {
+  try { return fs.readFileSync(f, 'utf8').split('\n').filter((l) => l.trim()); } catch { return []; }
+};
