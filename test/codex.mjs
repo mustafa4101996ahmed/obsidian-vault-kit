@@ -465,4 +465,26 @@ console.log(migrateContract(${JSON.stringify(vault)}));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+head('10. Every source the router names is shipped');
+
+{
+  const skills = path.resolve('vault-scaffold/.agents/skills');
+  const router = fs.readFileSync(path.join(skills, 'wiki-history-ingest', 'SKILL.md'), 'utf8');
+
+  // The runner asks for a source by name; a row pointing at a skill that is not
+  // here means the daily run routes to nothing and the vault stops growing.
+  truthy('the router routes codex', /\|\s*`codex`\s*\|/.test(router));
+  truthy('codex-history-ingest is shipped', fs.existsSync(path.join(skills, 'codex-history-ingest', 'SKILL.md')));
+
+  const skill = fs.readFileSync(path.join(skills, 'codex-history-ingest', 'SKILL.md'), 'utf8');
+  has('it declares its name', skill, 'name: codex-history-ingest');
+  has('it has a description Codex can route on', skill, 'description:');
+  has('it reads the Codex sessions directory', skill, '.codex');
+  has('it writes the log tag the runner greps for', skill, 'CODEX_HISTORY_INGEST');
+  truthy('no personal paths leaked in', !/\/Users\/[a-z]+\//i.test(skill));
+  truthy('no dependency on a skill the kit does not ship', !skill.includes('llm-wiki/SKILL.md'));
+  truthy('the reference file is shipped',
+    fs.existsSync(path.join(skills, 'codex-history-ingest', 'references', 'codex-data-format.md')));
+}
+
 summary();
