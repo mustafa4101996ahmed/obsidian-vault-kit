@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, has, head, KIT, makeHome, moduleUrl, removeHome, run, summary, truthy } from './harness.mjs';
+import { eq, has, head, KIT, lines, makeHome, moduleUrl, removeHome, run, summary, truthy } from './harness.mjs';
 
 const { HOSTS, hostById } = await import('../lib/host.mjs');
 
@@ -409,6 +409,38 @@ head('6. Every source the router names is shipped');
   truthy('no dependency on a skill the kit does not ship', !skill.includes('llm-wiki/SKILL.md'));
   truthy('the reference file is shipped',
     fs.existsSync(path.join(skills, 'codex-history-ingest', 'references', 'codex-data-format.md')));
+}
+
+head('7. The ingest must not re-queue itself');
+// Codex has no equivalent of Claude's --setting-sources, which is how the Claude runner
+// avoids loading the user-level Stop hook and firing it at the end of its own ingest.
+// ~/.codex/hooks.json is always loaded, and a live spike confirmed the hook does fire --
+// so once trust is granted, the ingest's own final turn would mark pending again and the
+// flag would never clear. Every scheduled run would then do a full ingest forever, which
+// quietly breaks the kit's promise that a day with nothing pending costs nothing.
+//
+// The guard is an env var the runner sets on the agent it spawns, which a spike proved
+// reaches the hook process. It also protects the Claude path, which currently rests that
+// guarantee on one flag staying correct.
+{
+  const { home, env } = makeHome('vault-kit-selftrigger-');
+  const wiki = path.join(home, '.obsidian-wiki');
+  const hook = path.join(KIT, 'bin', 'mark-pending.mjs');
+  const flag = path.join(wiki, '.pending_ingest');
+  const queue = path.join(wiki, '.pending_sessions');
+
+  // A turn that is the user's own must still queue work.
+  run(hook, [], env);
+  truthy('a normal turn writes the pending flag', fs.existsSync(flag));
+  eq('and queues one turn', lines(queue).length, 1);
+
+  // A turn that is the ingest's own must not.
+  fs.rmSync(flag, { force: true });
+  run(hook, [], { ...env, OBSIDIAN_WIKI_INGEST: '1' });
+  truthy('the ingest\'s own turn writes no flag', !fs.existsSync(flag));
+  eq('and queues nothing', lines(queue).length, 1);
+
+  removeHome(home);
 }
 
 summary();

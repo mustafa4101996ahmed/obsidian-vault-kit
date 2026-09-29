@@ -13,6 +13,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
+// The ingest's own final turn must not queue another ingest.
+//
+// Claude Code escapes this by accident of configuration: the runner passes
+// --setting-sources project,local, so the user-level settings holding this hook are
+// never loaded. Codex has no equivalent -- ~/.codex/hooks.json is always read, and a
+// live run confirmed the Stop hook does fire -- so without this guard the flag written
+// here would be written by the very run that just cleared it. It would never clear
+// again, and every scheduled run would do a full ingest forever, which is exactly the
+// promise the kit makes in reverse: a day with nothing pending is supposed to cost
+// nothing.
+//
+// The runner sets this on the agent it spawns; hook processes inherit it.
+if (process.env.OBSIDIAN_WIKI_INGEST === '1') process.exit(0);
+
 try {
   const dir = path.join(os.homedir(), '.obsidian-wiki');
   fs.mkdirSync(dir, { recursive: true });
