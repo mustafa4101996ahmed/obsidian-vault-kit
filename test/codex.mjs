@@ -72,8 +72,7 @@ truthy('a configured model is passed with -m', xm.includes('-m') && xm.includes(
 const twoSource = claude.buildArgs({ ...args, sourceHosts: [claude, codex] });
 truthy('two --add-dir flags, one per source session dir', twoSource.filter((a) => a === '--add-dir').length === 2 && twoSource.includes(claude.sessionsDir) && twoSource.includes(codex.sessionsDir));
 eq('single-source args still get exactly one --add-dir', ca.filter((a) => a === '--add-dir').length, 1);
-truthy('Codex never emits --add-dir: it would make session history writable',
-  !codex.buildArgs({ ...args, sourceHosts: [claude, codex] }).includes('--add-dir'));
+truthy('Codex never emits --add-dir: it would make session history writable', !codex.buildArgs({ ...args, sourceHosts: [claude, codex] }).includes('--add-dir'));
 truthy('buildPrompt names claude before codex', /claude[\s\S]*codex/.test(buildPrompt(['claude', 'codex'])));
 
 head('3. Detection and engine choice');
@@ -483,8 +482,8 @@ head('10. Every source the router names is shipped');
 
   // The runner asks for a source by name; a row pointing at a skill that is not
   // here means the daily run routes to nothing and the vault stops growing.
-  truthy('the router routes codex', /\|\s*`codex`\s*\|/.test(router));
-  truthy('codex-history-ingest is shipped', fs.existsSync(path.join(skills, 'codex-history-ingest', 'SKILL.md')));
+  // Coupled: a router pointing `codex` at the wrong skill would still pass a bare "mentions codex" test.
+  eq('the codex row routes to codex-history-ingest', /\|\s*`codex`\s*\|\s*`([^`]+)`\s*\|/.exec(router)?.[1], 'codex-history-ingest');
 
   const skill = fs.readFileSync(path.join(skills, 'codex-history-ingest', 'SKILL.md'), 'utf8');
   has('it declares its name', skill, 'name: codex-history-ingest');

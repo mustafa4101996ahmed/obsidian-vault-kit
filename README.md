@@ -184,8 +184,12 @@ so your changes are version-controlled alongside your notes.
 
 ## Tests
 
+CI runs three suites; a branch that only passes the first can still fail CI.
+
 ```bash
-node test/suite.mjs          # the full suite, around 70 checks
+node test/suite.mjs          # 89 checks: install, uninstall, dry run, scheduler, shell block, the full runner path
+node test/codex.mjs          # 144 checks: host registry, hooks, skill links, config migration, install per host
+node test/runner.mjs         # 19 checks: the runner against a stubbed Codex CLI -- slow, ~2 minutes (the watchdog test)
 node test/suite.mjs --keep   # leave the throwaway home behind to inspect
 ```
 
