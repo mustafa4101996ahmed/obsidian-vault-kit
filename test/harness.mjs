@@ -64,9 +64,31 @@ export function hasOrNull(label, value, needle, note) {
 }
 
 /** A throwaway HOME, with USERPROFILE set too because os.homedir() reads it on Windows. */
-export function makeHome(tag = 'vault-kit-test-') {
+export function makeHome(tag = 'vault-kit-test-', { withoutAgents = false } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), tag));
-  return { home, env: { ...process.env, HOME: home, USERPROFILE: home } };
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  if (withoutAgents) env.PATH = pathWithoutAgents(env.PATH);
+  return { home, env };
+}
+
+/**
+ * The same PATH with every directory holding an agent CLI removed.
+ *
+ * A throwaway HOME hides `~/.claude` and `~/.codex`, but detection also looks on PATH,
+ * so a test asserting "this host is absent" quietly inverts its meaning on a machine
+ * where the CLI happens to be installed. That is not hypothetical: installing Codex
+ * locally turned four passing assertions red, the mirror of a CI run finding neither
+ * agent. A suite whose verdict depends on what the developer has installed is not a
+ * suite. Removing the directory is the only way to make a CLI genuinely absent —
+ * PATH order cannot hide a binary.
+ */
+function pathWithoutAgents(current) {
+  const sep = IS_WIN ? ';' : ':';
+  const names = IS_WIN ? ['claude.cmd', 'claude.exe', 'codex.cmd', 'codex.exe'] : ['claude', 'codex'];
+  return (current || '')
+    .split(sep)
+    .filter((dir) => dir && !names.some((n) => fs.existsSync(path.join(dir, n))))
+    .join(sep);
 }
 
 export function run(script, args = [], env = process.env, { timeout = 120000 } = {}) {
