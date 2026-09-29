@@ -173,7 +173,18 @@ if (HOST_SPEC === 'auto') {
   if (!targets.length) {
     warn('No agent CLI found. Install one:');
     for (const h of HOSTS) warn(`  ${h.label}: ${h.installHint}`);
-    warn('Install continues, but the automation cannot run until one is available.');
+    // Fall back to the default host instead of leaving targets empty. An empty
+    // targets used to mean linkSkills()/installStopHook() ran zero times -- nothing
+    // linked, no hook registered -- while the config-write fallback below (search
+    // "No agent was found") still recorded `engine` as this very host, because
+    // resolveEngine() makes the same choice when nothing is present. The result was
+    // a config claiming a Claude install that skills and hooks never backed up: install
+    // on a fresh machine, add the agent CLI afterwards, and find no skills and no hook
+    // with nothing having said so. Wiring up the default host here instead keeps
+    // config, skill links and hook all agreeing, ready for when the CLI arrives.
+    targets = [resolveEngine(detected)];
+    warn(`Wiring up ${targets[0].label} in anticipation: skills will be linked and its `
+      + 'Stop hook registered now, so the kit is ready the moment the CLI is installed.');
   }
 } else if (HOST_SPEC === 'both') {
   targets = HOSTS.slice();
@@ -311,13 +322,11 @@ if (DRY) {
     if (model) entry.model = model;
     hosts[host.id] = entry;
   }
-  // No agent was found, so the loop above ran zero times. Writing hosts: {} here is
-  // indistinguishable from a hand-edited or corrupted config -- lib/platform.mjs's
-  // own migration comment treats it that way -- and leaves `engine` pointing at a
-  // host with no entry. Give it a placeholder entry instead of an empty map.
-  if (!targets.length) {
-    hosts[engine.id] = { exe: engine.exe, ...(engine.defaultModel && { model: engine.defaultModel }) };
-  }
+  // targets can no longer be empty here -- the auto branch above now falls back to
+  // resolveEngine()'s default host instead of leaving it empty -- so the loop always
+  // runs at least once and `engine` always gets a matching hosts{} entry. This used to
+  // need a placeholder-entry special case for the empty-targets config; that special
+  // case was itself the config/skills/hook disagreement the auto-branch fallback fixes.
   writeConfig({
     vaultPath: VAULT,
     engine: engine.id,
@@ -456,7 +465,10 @@ Next, in order:
   // Steps 4 and 5 name a specific agent CLI, so they only make sense once one was
   // actually wired up. Printing them anyway told a user with nothing installed to
   // run `claude` and gather "some Claude Code history" that could never arrive (F6).
-  if (targets.length) {
+  // Gate on real detection, not `targets` -- the auto branch now wires up a default
+  // host even when nothing was detected, so `targets.length` alone would reintroduce
+  // exactly that bug for a no-CLI machine.
+  if (detected.some((d) => d.present)) {
     console.log(`  4. Ingest your first document:
          cd "${VAULT}"
          ${engine.exe}
