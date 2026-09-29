@@ -16,7 +16,7 @@ Line formats (each real entry is a "- " bullet starting with a bracketed timesta
 shown here without the bullet so this example can never be mistaken for one):
 
 ```
-[TIMESTAMP] CLAUDE-HISTORY sessions=N memory=N pages_created=N pages_updated=N
+[TIMESTAMP] CLAUDE_HISTORY_INGEST sessions=N memory=N pages_created=N pages_updated=N
 [TIMESTAMP] CODEX_HISTORY_INGEST sessions=N pages_created=N
 [TIMESTAMP] DOC-INGEST source="<path>" pages_created=N pages_updated=N
 [TIMESTAMP] DAILY-UPDATE fresh=N stale=N missing=N index_added=N hot_refreshed=true orphans=N deadends=N

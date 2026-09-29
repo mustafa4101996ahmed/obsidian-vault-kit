@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   DEFAULT_VAULT, IS_WIN, WIKI_DIR,
-  has, platformLabel, readConfig, which, writeConfig,
+  has, platformLabel, readConfig, writeConfig,
 } from './lib/platform.mjs';
 import { HOSTS, detectHosts, hostById, resolveEngine } from './lib/host.mjs';
 import { copyIfAbsent, installGitignore, installRunner, linkSkills, migrateContract, stampManifest, stampSeedDates } from './lib/vault.mjs';

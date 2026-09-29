@@ -411,7 +411,7 @@ head('7. Installing for a chosen host');
   fs.rmSync(home2, { recursive: true, force: true });
 }
 
-head('9. The vault contract moves to AGENTS.md');
+head('8. The vault contract moves to AGENTS.md');
 
 {
   const { home, env } = makeHome('vault-kit-contract-');
@@ -448,7 +448,7 @@ console.log(migrateContract(${JSON.stringify(vault)}));
   const { home, env } = makeHome('vault-kit-contract-upgrade-');
   const vault = path.join(home, 'v');
   fs.mkdirSync(vault, { recursive: true });
-  // A home directory is enough for detection, same convention as section 8.
+  // A home directory is enough for detection, same convention as section 7.
   fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
 
   const SENTINEL = 'MY OWN RULE: never file under areas/.';
@@ -474,7 +474,7 @@ console.log(migrateContract(${JSON.stringify(vault)}));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
-head('10. Every source the router names is shipped');
+head('9. Every source the router names is shipped');
 
 {
   const skills = path.resolve('vault-scaffold/.agents/skills');
