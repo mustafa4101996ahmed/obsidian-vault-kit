@@ -50,7 +50,7 @@ orphans float unconnected at the edge.
 - A page nothing links to is a page you will never find again.
 - A page that links nowhere is a dead end that traps you.
 
-`daily-update` checks both and reports the offenders. Full rules in `CLAUDE.md` under Graph Health
+`daily-update` checks both and reports the offenders. Full rules in `AGENTS.md` under Graph Health
 Rules.
 
 ## Colours in the graph view

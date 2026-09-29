@@ -82,7 +82,7 @@ Apply any FAILs before logging.
 
 **Step 6: Graph health check**
 
-Run this Python snippet (or equivalent) to count orphan and dead-end pages. Exclude `archive/`, `memory/`, `.agents/`, `.claude/`, `.obsidian/`, `docs/`, `entities/design-systems/`, and infrastructure files (`CLAUDE.md`, `index.md`, `hot.md`, `log.md`).
+Run this Python snippet (or equivalent) to count orphan and dead-end pages. Exclude `archive/`, `memory/`, `.agents/`, `.claude/`, `.obsidian/`, `docs/`, `entities/design-systems/`, and infrastructure files (`AGENTS.md`, `CLAUDE.md`, `index.md`, `hot.md`, `log.md`).
 
 ```python
 import os, re

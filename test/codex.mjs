@@ -402,4 +402,30 @@ head('7. Installing for a chosen host');
   fs.rmSync(home2, { recursive: true, force: true });
 }
 
+head('9. The vault contract moves to AGENTS.md');
+
+{
+  const { home, env } = makeHome('vault-kit-contract-');
+  const vault = path.join(home, 'v');
+  fs.mkdirSync(vault, { recursive: true });
+
+  // A contract the user has edited. Losing their edit would be the bug.
+  fs.writeFileSync(path.join(vault, 'CLAUDE.md'), '# Vault contract\n\nMY OWN RULE: never file under areas/.\n');
+
+  const driver = path.join(home, 'contract.mjs');
+  fs.writeFileSync(driver, `
+import { migrateContract } from ${JSON.stringify(path.resolve('lib/vault.mjs'))};
+console.log(migrateContract(${JSON.stringify(vault)}));
+`);
+
+  eq('an edited CLAUDE.md is moved', run(driver, [], env).out.trim(), 'moved');
+  has('the edit survives in AGENTS.md', fs.readFileSync(path.join(vault, 'AGENTS.md'), 'utf8'), 'MY OWN RULE');
+  has('CLAUDE.md becomes a pointer', fs.readFileSync(path.join(vault, 'CLAUDE.md'), 'utf8'), 'AGENTS.md');
+  truthy('the original was backed up',
+    fs.readdirSync(vault).some((f) => f.startsWith('CLAUDE.md.bak-')));
+  eq('running again is a no-op', run(driver, [], env).out.trim(), 'both-present');
+
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 summary();
