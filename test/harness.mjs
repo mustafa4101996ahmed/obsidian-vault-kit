@@ -33,6 +33,19 @@ export function has(label, haystack, needle) {
   String(haystack).includes(needle) ? ok(label) : no(`${label} (missing ${JSON.stringify(needle)})`);
 }
 
+// For an fs call (readlinkSync, statSync, ...) that throws ENOENT when the thing it
+// reads was never created. Without this, a missing file crashes the whole suite with
+// an uncaught exception instead of failing one assertion -- hiding every test after
+// it behind a single line in the CI log.
+export function tryOrNull(fn) { try { return fn(); } catch { return null; } }
+
+/** has(), but a null value (from tryOrNull) fails as `label (note)` instead of
+ * being stringified into "null" and compared against needle. */
+export function hasOrNull(label, value, needle, note) {
+  if (value === null) no(`${label} (${note})`);
+  else has(label, value, needle);
+}
+
 /** A throwaway HOME, with USERPROFILE set too because os.homedir() reads it on Windows. */
 export function makeHome(tag = 'vault-kit-test-') {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), tag));

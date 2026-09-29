@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { C, eq, has, head, na, no, ok, run as runScript, summary, truthy } from './harness.mjs';
+import { C, eq, has, hasOrNull, head, na, no, ok, run as runScript, summary, tryOrNull, truthy } from './harness.mjs';
 
 const KIT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const INSTALLER = path.join(KIT, 'install.mjs');
@@ -145,17 +145,20 @@ head('3. Skill links resolve, and are the right kind for the platform');
 {
   const one = path.join(SKILLS, 'wiki-agent');
   truthy('readable through the link', fs.existsSync(path.join(one, 'SKILL.md')));
-  const target = fs.readlinkSync(one);
-  has('link points into the vault', target, path.join('.agents', 'skills'));
-  const content = fs.readFileSync(path.join(one, 'SKILL.md'), 'utf8');
-  has('skill content readable', content, 'wiki-agent');
 
+  // A missing link (e.g. the no-fallback-host regression this suite once missed)
+  // makes readlinkSync/statSync throw ENOENT -- tryOrNull() turns that into a null
+  // these assertions fail on, instead of an uncaught exception.
+  const target = tryOrNull(() => fs.readlinkSync(one));
+  hasOrNull('link points into the vault', target, path.join('.agents', 'skills'), 'link missing');
+  const content = tryOrNull(() => fs.readFileSync(path.join(one, 'SKILL.md'), 'utf8'));
+  hasOrNull('skill content readable', content, 'wiki-agent', 'SKILL.md missing');
   if (IS_WIN) {
     // A junction reports as a symlink to lstat but needs no elevation to create.
     // This is the whole reason the kit uses junctions rather than symlinks here.
-    ok('junction created without administrator rights');
-    const stat = fs.statSync(one);
-    truthy('junction resolves to a directory', stat.isDirectory());
+    const stat = tryOrNull(() => fs.statSync(one));
+    truthy('junction created without administrator rights', stat !== null);
+    truthy('junction resolves to a directory', stat ? stat.isDirectory() : false);
   } else {
     na('junction check (Windows only)');
   }
