@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, has, head, KIT, makeHome, run, summary, truthy } from './harness.mjs';
+import { eq, has, head, KIT, makeHome, removeHome, run, summary, truthy } from './harness.mjs';
 
 head('1. The runner, against a codex stub');
 
@@ -119,7 +119,7 @@ setTimeout(() => { console.log('too late'); }, 300000);
   eq('a killed run leaves the queue intact',
     fs.readFileSync(path.join(wiki, '.pending_sessions'), 'utf8').trim().split('\n').length, 2);
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 summary();

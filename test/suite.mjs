@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { C, eq, has, hasOrNull, head, na, no, ok, run as runScript, summary, tryOrNull, truthy } from './harness.mjs';
+import { C, eq, has, hasOrNull, head, na, no, ok, removeHome, run as runScript, summary, tryOrNull, truthy } from './harness.mjs';
 
 const KIT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const INSTALLER = path.join(KIT, 'install.mjs');
@@ -493,7 +493,7 @@ console.log('stub agent: ingested 1 session');
 
 // ===========================================================================
 
-if (!KEEP) fs.rmSync(HOME, { recursive: true, force: true });
+if (!KEEP) removeHome(HOME);
 if (KEEP) console.log(`\nTest home kept at ${HOME}`);
 
 summary();

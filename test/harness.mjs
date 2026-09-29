@@ -80,6 +80,42 @@ export function run(script, args = [], env = process.env, { timeout = 120000 } =
   }
 }
 
+// A synchronous sleep for the straight-line teardown below: these are plain scripts,
+// not async, so threading a Promise through every call site just to wait a few
+// hundred ms isn't worth it. Blocking the main thread on Atomics.wait is fine here --
+// Node (unlike a browser) allows it, and nothing else needs to run in the meantime.
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** Deletes a throwaway HOME, retrying through the Windows window where a process the
+ * watchdog just killed hasn't yet released its cwd handle -- and, for a .cmd shim
+ * routed through cmd.exe, where the real node grandchild can briefly outlive the
+ * killed parent. rmSync then fails with EBUSY even though nothing is wrong: the
+ * handle clears on its own within a few hundred ms once the OS reaps the process, so
+ * a handful of short retries is enough on every platform this has been seen on.
+ *
+ * If it still won't go, this warns and RETURNS NORMALLY instead of throwing -- on
+ * purpose. The guard this prevents: a fully-green suite reported as failed because
+ * the OS was slow to let go of a temp directory, which would point whoever reads the
+ * CI log at a product defect that was never there. A suite's verdict belongs to its
+ * assertions, not to teardown, and a directory left behind under the system temp dir
+ * on an ephemeral CI runner costs nothing. */
+export function removeHome(home, { retries = 5, delayMs = 300 } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      fs.rmSync(home, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= retries) {
+        console.warn(`warning: could not remove ${home} (${err.code}): ${err.message}`);
+        return;
+      }
+      sleepSync(delayMs);
+    }
+  }
+}
+
 export function summary(label = process.platform) {
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${label}: ${C.g}${pass} passed${C.z}, ${fail ? C.r : ''}${fail} failed${C.z}, ${C.y}${skip} skipped${C.z}`);

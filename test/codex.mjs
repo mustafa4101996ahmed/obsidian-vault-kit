@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, has, head, KIT, makeHome, moduleUrl, run, summary, truthy } from './harness.mjs';
+import { eq, has, head, KIT, makeHome, moduleUrl, removeHome, run, summary, truthy } from './harness.mjs';
 
 const { HOSTS, hostById, detectHosts, resolveEngine } = await import('../lib/host.mjs');
 const { buildPrompt } = await import('../lib/prompt.mjs');
@@ -174,7 +174,7 @@ console.log(JSON.stringify(readConfig()));
   const cfg5 = JSON.parse(r5.out.trim().split('\n').pop());
   truthy('a legacy config without model does not get one', !('model' in cfg5.hosts.claude));
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 head('5. Stop hooks, per host');
@@ -219,7 +219,7 @@ else console.log(removeStopHook(host));
 
   eq('removing from a host with no file says so', run(driver, ['claude', 'remove'], env).out.trim(), 'no-settings');
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 head('6. Skill links, per host');
@@ -260,7 +260,7 @@ console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, HOSTS)));
   const rows2 = JSON.parse(run(driver, [], env).out.trim().split('\n').pop());
   truthy('a second run reports them present', rows2.every((x) => x.status === 'present'));
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 {
@@ -296,7 +296,7 @@ console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, hosts)));
   eq('the broken host is reported host-failed', codexRows[0].status, 'host-failed');
   truthy('the failure carries a reason', Boolean(codexRows[0].reason));
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 head('7. Installing for a chosen host');
@@ -342,7 +342,7 @@ head('7. Installing for a chosen host');
     has('it says Codex is installed but not included', r5.out,
       'is installed, but --host claude does not include it');
     truthy('it does not also say Codex is not installed', !r5.out.includes('is not installed'));
-    fs.rmSync(home4, { recursive: true, force: true });
+    removeHome(home4);
   }
 
   // A genuinely absent --engine still gets the install hint -- confirms the two
@@ -352,7 +352,7 @@ head('7. Installing for a chosen host');
     const r6 = run(installer, ['--vault', path.join(home5, 'v'), '--engine', 'codex', '--no-git'], env5);
     truthy('a genuinely absent engine fails', r6.code !== 0);
     has('and still carries the install hint', r6.out, 'npm install -g @openai/codex');
-    fs.rmSync(home5, { recursive: true, force: true });
+    removeHome(home5);
   }
 
   // Both hosts on one machine: two hook sets, two link sets, one source of truth.
@@ -379,7 +379,7 @@ head('7. Installing for a chosen host');
     fs.realpathSync(path.join(home3, '.claude', 'skills', 'wiki-agent'))
     === fs.realpathSync(path.join(home3, '.codex', 'skills', 'wiki-agent')));
 
-  fs.rmSync(home3, { recursive: true, force: true });
+  removeHome(home3);
 
   // Uninstall cleans the codex side and leaves an unrelated hook alone.
   const hooksFile = path.join(home, '.codex', 'hooks.json');
@@ -407,8 +407,8 @@ head('7. Installing for a chosen host');
   truthy('a foreign vault\'s symlink survives uninstall', fs.existsSync(foreignLink));
   truthy('the vault survives an uninstall', fs.existsSync(path.join(vault, 'index.md')));
 
-  fs.rmSync(home, { recursive: true, force: true });
-  fs.rmSync(home2, { recursive: true, force: true });
+  removeHome(home);
+  removeHome(home2);
 }
 
 head('8. The vault contract moves to AGENTS.md');
@@ -434,7 +434,7 @@ console.log(migrateContract(${JSON.stringify(vault)}));
     fs.readdirSync(vault).some((f) => f.startsWith('CLAUDE.md.bak-')));
   eq('running again is a no-op', run(driver, [], env).out.trim(), 'both-present');
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 {
@@ -471,7 +471,7 @@ console.log(migrateContract(${JSON.stringify(vault)}));
   truthy('no scaffold boilerplate landed in AGENTS.md instead of the edit',
     !agents.includes('Graph Health Rules'));
 
-  fs.rmSync(home, { recursive: true, force: true });
+  removeHome(home);
 }
 
 head('9. Every source the router names is shipped');
