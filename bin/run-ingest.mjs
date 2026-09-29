@@ -12,7 +12,7 @@
 // Almost all of this file is guards. Every one of them exists because something went
 // wrong without it. Read the comment before removing one.
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -20,9 +20,10 @@ import { randomUUID } from 'node:crypto';
 import {
   CONFIG_PATH, LOCK_PATH, LOG_DIR,
   PENDING_FLAG, PENDING_SESSIONS, RUN_STARTED, WIKI_DIR,
-  localDateStamp, platformLabel, readConfig,
+  localDateStamp, platformLabel, readConfig, treeKillCommand,
 } from '../lib/platform.mjs';
 import { HOSTS, hostById } from '../lib/host.mjs';
+import { LOG_KEEP_DAYS, LOG_MAX_BYTES, capNote, condenseEvent, pruneLogs } from '../lib/output.mjs';
 import { notify } from '../lib/notify.mjs';
 import { buildPrompt } from '../lib/prompt.mjs';
 
@@ -61,6 +62,10 @@ Config: ${CONFIG_PATH}
 
 fs.mkdirSync(LOG_DIR, { recursive: true });
 const LOG = path.join(LOG_DIR, `${localDateStamp()}.log`);
+
+// One file per day, kept for a bounded window. Without this the count of files grows
+// forever on a machine that runs the ingest daily for years.
+const prunedLogs = pruneLogs(LOG_DIR);
 
 const QUIET = args.includes('--quiet') || args.includes('-q');
 
@@ -189,6 +194,7 @@ function sessionActiveSince(sessionsDir, sessionId, cutoffMs) {
 async function main() {
   log('');
   log(`=== ${stamp()} run-ingest${FORCE ? ' --force' : ''} on ${platformLabel()}`);
+  if (prunedLogs) log(`pruned ${prunedLogs} log file(s) older than ${LOG_KEEP_DAYS} days`);
 
   const cfg = readConfig();
   if (!cfg) {
@@ -284,10 +290,37 @@ async function main() {
     // Sending it only to the log made `wiki-history` sit silent for minutes with the
     // agent working invisibly behind it.
     let lastOutputMs = Date.now();
+    let logCapped = false;
+    let pending = '';
+
+    // The watchdog reads lastOutputMs, which is set per chunk rather than per parsed
+    // line. Readability must not be able to weaken the stall signal.
     const sink = (buf) => {
       lastOutputMs = Date.now();
-      try { fs.appendFileSync(LOG, buf); } catch { /* ignore */ }
-      if (!QUIET) process.stdout.write(buf);
+
+      if (!logCapped) {
+        try {
+          if (fs.statSync(LOG).size > LOG_MAX_BYTES) {
+            logCapped = true;
+            fs.appendFileSync(LOG, capNote());
+          } else {
+            fs.appendFileSync(LOG, buf);
+          }
+        } catch { /* a log we cannot write must not end the run */ }
+      }
+
+      if (QUIET) return;
+      if (engine.watchdog !== 'stdout') { process.stdout.write(buf); return; }
+
+      // A host that streams one JSON event per line: show a line a person can read.
+      // Chunks split mid-line, so hold the tail until its newline arrives.
+      pending += buf.toString();
+      const parts = pending.split('\n');
+      pending = parts.pop();
+      for (const part of parts) {
+        const condensed = condenseEvent(part);
+        if (condensed) process.stdout.write(`${condensed}\n`);
+      }
     };
     child.stdout.on('data', sink);
     child.stderr.on('data', sink);
@@ -311,6 +344,15 @@ async function main() {
       if (active) return;
       log(`watchdog: ${engine.label} made no progress for ${STALL_MINUTES} minutes; stopping it`);
       killed = true;
+      // Take the whole tree where the OS needs telling; see treeKillCommand. Best
+      // effort by design: if taskkill is missing or refuses, the kill below still runs
+      // and the run still fails, which is the outcome that matters.
+      const tree = treeKillCommand(child.pid);
+      if (tree) {
+        try {
+          execFileSync(tree.file, tree.args, { stdio: 'ignore', timeout: 10000 });
+        } catch { /* fall through to child.kill() */ }
+      }
       child.kill();
       setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 30000);
     }, 60000);

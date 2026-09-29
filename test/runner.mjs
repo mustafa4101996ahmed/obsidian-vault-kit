@@ -40,6 +40,7 @@ const log = path.join(vault, 'log.md');
 let t = fs.readFileSync(log, 'utf8');
 t = t.replace('# Wiki Log', '# Wiki Log\\n\\n- [' + new Date().toISOString() + '] CODEX_HISTORY_INGEST sessions=1 pages_created=1');
 fs.writeFileSync(log, t);
+console.log(JSON.stringify({ type: 'turn.started' }));
 console.log('stub codex: ingested 1 session');
 `);
 
@@ -77,6 +78,13 @@ console.log('stub codex: ingested 1 session');
     truthy('no -p was passed', !argv.split('\n').includes('-p'));
   }
   has('the headline came from a CODEX log line', r.out, 'CODEX_HISTORY_INGEST');
+
+  // Proves the sink routes a stdout-stream host through condenseEvent rather than
+  // echoing raw JSON: unit tests cover the formatting, this covers the wiring.
+  has('a JSON event is condensed for the terminal', r.out, '\u00b7 turn.started');
+  truthy('and the raw JSON is not echoed', !r.out.includes('{"type":"turn.started"}'));
+  has('but the raw stream still reaches the log',
+    fs.readFileSync(path.join(wiki, 'logs', `${localDate()}.log`), 'utf8'), '{"type":"turn.started"}');
   truthy('the pending flag cleared', !fs.existsSync(path.join(wiki, '.pending_ingest')));
 
   // A stub that exits zero having changed nothing is still a failure.

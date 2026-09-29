@@ -8,6 +8,8 @@ import { eq, has, head, summary, truthy } from './harness.mjs';
 
 const { HOSTS, hostById, detectHosts, resolveEngine } = await import('../lib/host.mjs');
 const { buildPrompt } = await import('../lib/prompt.mjs');
+const { LOG_MAX_BYTES, capNote, condenseEvent, pruneLogs } = await import('../lib/output.mjs');
+const { treeKillCommand } = await import('../lib/platform.mjs');
 
 head('1. The host registry');
 
@@ -96,5 +98,66 @@ has('and says how to install it', threw || '', 'npm install');
 threw = null;
 try { resolveEngine(both, 'gemini'); } catch (err) { threw = err.message; }
 truthy('requesting an unknown host throws', threw !== null);
+
+head('4. Condensing an event stream');
+// Codex streams one JSON event per line. Echoing it verbatim means watching raw JSON
+// scroll past for the whole run, so the terminal gets one readable line per event while
+// the log keeps the raw stream.
+
+eq('an event becomes one short line', condenseEvent('{"type":"turn.started"}'), '  \u00b7 turn.started');
+has('a message is included', condenseEvent('{"type":"agent_message","text":"ok"}'), 'agent_message: ok');
+has('an item type stands in when there is no text',
+  condenseEvent('{"type":"item.completed","item":{"type":"shell"}}'), 'item.completed: shell');
+eq('a blank line is dropped', condenseEvent('   '), null);
+
+// The line that matters most: anything that is not JSON is where a real error surfaces,
+// so it passes through untouched rather than being reformatted or swallowed.
+eq('a non-JSON line passes through', condenseEvent('error: something broke'), 'error: something broke');
+eq('malformed JSON passes through rather than vanishing', condenseEvent('{"type":'), '{"type":');
+
+truthy('a long message is truncated, not echoed whole',
+  condenseEvent(JSON.stringify({ type: 'agent_message', text: 'x'.repeat(500) })).length < 140);
+truthy('newlines inside a message cannot break the one-line-per-event shape',
+  !condenseEvent('{"type":"agent_message","text":"a\\nb"}').includes('\n'));
+
+head('5. Bounding the logs');
+
+{
+  const fsx = await import('node:fs');
+  const osx = await import('node:os');
+  const dir = fsx.mkdtempSync(path.join(osx.tmpdir(), 'vault-kit-logs-'));
+  const old = path.join(dir, '2020-01-01.log');
+  const fresh = path.join(dir, '2999-01-01.log');
+  const other = path.join(dir, 'notes.txt');
+  for (const f of [old, fresh, other]) fsx.writeFileSync(f, 'x');
+  fsx.utimesSync(old, new Date('2020-01-01'), new Date('2020-01-01'));
+
+  eq('one stale log removed', pruneLogs(dir, 90), 1);
+  truthy('the stale log is gone', !fsx.existsSync(old));
+  truthy('a recent log is kept', fsx.existsSync(fresh));
+  truthy('a non-log file is never touched', fsx.existsSync(other));
+  eq('a missing directory is not an error', pruneLogs(path.join(dir, 'nope'), 90), 0);
+
+  has('the cap note names the limit', capNote(), String(LOG_MAX_BYTES));
+  fsx.rmSync(dir, { recursive: true, force: true });
+}
+
+head('6. Killing a stalled agent on Windows');
+// The watchdog's kill has to reach the real agent. On Windows the agent is usually a
+// .cmd shim launched through cmd.exe, so killing the child kills the interpreter and
+// leaves the node grandchild running -- the watchdog then reports stopping something
+// that is still going. isWin is injected here because this branch cannot otherwise be
+// tested anywhere but Windows.
+
+{
+  const win = treeKillCommand(4321, { isWin: true });
+  eq('Windows kills the tree with taskkill', win.file, 'taskkill');
+  truthy('it targets the pid', win.args.includes('/PID') && win.args.includes('4321'));
+  truthy('it includes the children', win.args.includes('/T'));
+  truthy('it forces', win.args.includes('/F'));
+  eq('the pid is passed as a string, as execFile requires', typeof win.args[win.args.indexOf('/PID') + 1], 'string');
+  eq('POSIX needs no tree kill, because nothing stands between us and the agent',
+    treeKillCommand(4321, { isWin: false }), null);
+}
 
 summary();
