@@ -29,6 +29,8 @@ eq('Claude watches transcripts', claude.watchdog, 'transcript');
 eq('Codex watches stdout, having no session id to pin', codex.watchdog, 'stdout');
 eq('Claude routes the claude history source', claude.historyArg, 'claude');
 eq('Codex routes the codex history source', codex.historyArg, 'codex');
+eq('Claude defaults to sonnet: it has no usable default of its own and must always get a --model', claude.defaultModel, 'sonnet');
+eq("Codex has no default model: pinning one would rot and override the user's own config", codex.defaultModel, null);
 
 head('2. Invocation arguments');
 
@@ -39,6 +41,17 @@ has('Claude pins the session id', ca.join(' '), '--session-id');
 has('Claude keeps its tool allowlist', ca.join(' '), '--allowedTools');
 has('Claude keeps acceptEdits', ca.join(' '), 'acceptEdits');
 truthy('Claude receives the prompt', ca.includes('INGEST'));
+
+// A config missing the model key (legacy, or Claude with no model configured) must
+// never reach the CLI as the literal argument "--model null" -- see section 4 for
+// the migration test that a missing key stays missing.
+const caNoModel = claude.buildArgs({ prompt: 'P', model: null, sessionId: 's', vault: '/v' });
+truthy('no bare "null" reaches the Claude CLI when no model is configured', !caNoModel.join(' ').includes('null'));
+truthy('and --model is omitted entirely, not emitted with a null value', !caNoModel.includes('--model'));
+
+const caWithModel = claude.buildArgs({ prompt: 'P', model: 'sonnet', sessionId: 's', vault: '/v' });
+const modelFlagAt = caWithModel.indexOf('--model');
+truthy('a configured model is still passed as --model <name>', modelFlagAt !== -1 && caWithModel[modelFlagAt + 1] === 'sonnet');
 
 const xa = codex.buildArgs({ ...args, model: null });
 eq('Codex runs exec', xa[0], 'exec');
