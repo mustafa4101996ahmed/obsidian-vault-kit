@@ -8,26 +8,33 @@ It explains what each piece does and, more usefully, why each guard exists.
 ```
   1. VAULT            ~/Documents/Obsidian Vault
      |- notes, sorted into zones by shape
-     |- CLAUDE.md          the contract: zones, frontmatter, graph rules
+     |- AGENTS.md          the contract: zones, frontmatter, graph rules
      |- .manifest.json     the ingest ledger
      `- .agents/skills/    the skills, version-controlled with the notes
                 |
-  2. SKILLS      `- symlink (unix) / junction (windows) -> ~/.claude/skills/
-                                 (what Claude Code actually loads)
+  2. SKILLS      `- symlink (unix) / junction (windows) ->
+                      ~/.claude/skills/   (Claude Code)
+                      ~/.codex/skills/    (Codex CLI)
+                    one set per installed host; the vault stays the source of truth
                 |
-  3. TRIGGER     Claude Stop hook -> bin/mark-pending.mjs
+  3. TRIGGER     Stop hook, per host  -> bin/mark-pending.mjs
+                   ~/.claude/settings.json  |  ~/.codex/hooks.json
                                      writes .pending_ingest + one line per turn
                 |
   4. RUNNER      scheduler (daily) -> bin/run-ingest.mjs
                  or `wiki-history` by hand    |
-                                              `-> claude -p, headless,
-                                                  running /wiki-history-ingest
+                                              `-> the engine host, headless,
+                                                  running wiki-history-ingest
+                                                  once per installed source
                 |
   5. LEDGER      .manifest.json  <- every processed file gets a row
 ```
 
-Layers 1, 3 and 5 are identical on every platform. Layer 2 differs only in link type. Layer 4 differs
-only in which scheduler starts it.
+Layers 1 and 5 are identical on every platform and every host. Layer 2 differs by platform only in
+link type, and now differs by host in which directories get the links. Layer 3 stays
+platform-neutral, but it is no longer host-neutral: the hook lives in a different file, under a
+different key, per host — which is why one merge routine in `lib/hooks.mjs` installs both. Layer 4
+differs by platform only in which scheduler starts it, and by host in which agent it runs headless.
 
 ## Platform boundaries
 
@@ -63,8 +70,9 @@ and `wiki-log` reported no log for a day that had one.
 
 ## 1. The vault
 
-The folders sort by shape, not subject. `CLAUDE.md` is the authority: change a rule there and every
-skill follows it, because every skill reads it at the start of a session.
+The folders sort by shape, not subject. `AGENTS.md` is the authority: change a rule there and every
+skill follows it, because every skill reads it at the start of a session. `CLAUDE.md` is a pointer to
+it, kept only because Claude Code looks for that name; edit `AGENTS.md`, not the pointer.
 
 `index.md`, `hot.md` and `log.md` are generated. `daily-update` writes the first two between marker
 comments; ingest runs append to the third. Editing them by hand is harmless but pointless, because
@@ -76,8 +84,9 @@ results.
 
 ## 2. Skills, and how they are linked
 
-The skill definitions live inside the vault at `.agents/skills/`. Claude Code only looks in
-`~/.claude/skills/`, so the installer creates one link per skill pointing back into the vault.
+The skill definitions live inside the vault at `.agents/skills/`. Claude Code looks only in
+`~/.claude/skills/`, and Codex only in `~/.codex/skills/` — neither reads the vault directly — so the
+installer creates one link per skill, per installed host, pointing back into the vault.
 
 The vault is therefore the single source of truth, and skills get version-controlled alongside the
 notes they operate on. Edit the copy in the vault.
@@ -89,8 +98,10 @@ is that edits no longer flow both ways.
 
 ## 3. The trigger
 
-Claude Code fires a `Stop` hook at the end of every turn. The hook runs `bin/mark-pending.mjs`, which
-does two things:
+Claude Code and Codex each fire a `Stop` hook at the end of every turn — Claude's lives in
+`~/.claude/settings.json`, Codex's in `~/.codex/hooks.json`, both nested under a root `hooks` key,
+which is why one merge routine in `lib/hooks.mjs` installs both. The hook runs `bin/mark-pending.mjs`,
+which does two things:
 
 - writes `.pending_ingest`, the flag the runner gates on
 - appends one epoch second to `.pending_sessions`, one line per turn
@@ -104,7 +115,8 @@ session. Losing one marker costs a delayed ingest; a broken hook costs a working
 
 ## 4. The runner
 
-`bin/run-ingest.mjs` is a wrapper around one headless Claude invocation. Nearly all of it is guards.
+`bin/run-ingest.mjs` is a wrapper around one headless invocation of the engine host — Claude or
+Codex. Nearly all of it is guards.
 
 **The lock.** Creating a directory is atomic, so `fs.mkdirSync` is the test-and-set:
 it fails if another run holds it. Two concurrent runs would both write `.manifest.json` and one set of
@@ -117,9 +129,12 @@ Exiting is safe: the pending flag is untouched, so the work stays queued.
 **The pending gate.** No flag and no `--force` means exit immediately. This is what lets the scheduled
 job run every day at no cost on the days nothing happened.
 
-**The watchdog.** A run that stops writing transcripts for 20 minutes is hung, not thinking. The guard
-was added after a run sat on a single model call for 100 minutes. The check looks for recent writes to any `.jsonl` belonging to this session id, including
-files written by subagents, so delegated work counts as activity.
+**The watchdog.** A run that stops making progress for 20 minutes is hung, not thinking. The guard
+was added after a run sat on a single model call for 100 minutes. For Claude, progress means a recent
+write to any `.jsonl` belonging to this session id, including files written by subagents, so
+delegated work counts as activity. Codex has no session id and no transcript to scan, so its watchdog
+reads its own `--json` stdout stream instead — see *Porting to another agent* for why that turned out
+to be the better signal anyway.
 
 Note the session id is used to *find* the transcript rather than rebuilding the project directory
 name from the vault path. Claude Code names those directories by folding path separators into
@@ -127,7 +142,7 @@ hyphens, which is lossy: a space in `Obsidian Vault` and a hyphen in a real fold
 as the same character, and the encoding differs between platforms. Searching for the id
 cannot be wrong; reconstructing the path can.
 
-**The manifest stamp.** The guard that matters most. After Claude exits zero, the runner checks
+**The manifest stamp.** The guard that matters most. After the engine exits zero, the runner checks
 whether `.manifest.json` is newer than the run's start marker. If it isn't, the run is a failure
 regardless of its exit code, because a run that recorded nothing ingested nothing. A pipeline that
 reports success while doing nothing will go unnoticed for weeks.
@@ -154,10 +169,13 @@ under two different source types.
 | Failure | How you notice | Guard |
 |---|---|---|
 | Run reports success, ingested nothing | Weeks later, wondering why the vault is thin | Manifest stamp check |
+| Codex hook installed but never trusted | Weeks later: the vault stopped growing and nothing errored | Installer prints the trust step instead of reporting success |
+| Every notification read the log's own placeholder text | Indefinitely — every run's headline said the same generic line, whether or not the ingest worked | `log.md`'s line-format examples are dedented out of bullet form so they can't out-sort a real entry |
 | Two writers, one loses its updates | Never, without the check | Lock plus other-writer check |
+| Codex-only run's headline looks empty | The notification says "history ingest finished" on a real ingest | `newestLogEntry` builds its pattern from every host's log tag |
 | Duplicate manifest rows | Files re-ingested or skipped at random | Upsert by path |
 | Turn lost during a run | Never | Pending line arithmetic |
-| Claude hangs on a model call | The task still running hours later | 20-minute watchdog |
+| The engine hangs on a model call | The task still running hours later | 20-minute watchdog |
 | Stop hook throws | Immediately, and painfully | Hook swallows its own errors |
 | Notification silently not shown | Never, if you trusted the banner | Headline is written to the log before notify() is called |
 | Missing frontmatter `summary` | Note absent from the index though the file exists | `daily-update` reports it |
@@ -167,12 +185,14 @@ under two different source types.
 
 | To change | Edit |
 |---|---|
-| Zones, frontmatter, graph rules | `CLAUDE.md` in the vault |
-| The model ingests use | `model` in `~/.obsidian-wiki/config.json` |
+| Zones, frontmatter, graph rules | `AGENTS.md` in the vault (`CLAUDE.md` is a pointer to it) |
+| The model an ingest uses | `hosts.<id>.model` in `~/.obsidian-wiki/config.json`, or `install.mjs --model` (applies to the engine) |
+| Which agent runs the daily ingest | `engine` in `~/.obsidian-wiki/config.json`, or `install.mjs --engine codex` |
+| Which agents get a hook and skill links | `install.mjs --host auto\|claude\|codex\|both` |
 | Vault location | Re-run `node install.mjs --vault ...` |
 | Watchdog or stale-lock timeouts | `--stall-minutes` / `--stale-lock-minutes` on `run-ingest.mjs` |
 | Schedule time | `node install.mjs --schedule HH:MM` |
-| What the daily run asks Claude to do | the `PROMPT` array in `bin/run-ingest.mjs` |
+| What the daily run asks the engine to do | the `buildPrompt()` function in `bin/run-ingest.mjs` |
 
 ## Porting to another platform
 
@@ -182,4 +202,32 @@ guards and the ledger are all platform-neutral by construction.
 
 If you find yourself editing a third file to add a platform, that is a sign the abstraction has
 leaked, and the fix is to move the platform-specific part into one of those two rather than spread it
+further.
+
+## Porting to another agent
+
+One file knows which agent CLI it is talking to: `lib/host.mjs`. Add a descriptor with
+the host's home directory, skills directory, hooks file, sessions directory, the
+`wiki-history-ingest` source name it maps to, the log tag its skill writes, and a
+`buildArgs()` that produces an unattended invocation. Then ship a history-ingest skill
+for it, because the router will route to it by name and a missing skill means the daily
+run does nothing.
+
+Two things to get right, both learned the hard way on Codex:
+
+**How you tell whether the run is still alive.** Claude Code's `-p` stdout is silent
+until the end, so progress can only be read from transcript mtimes, and subagent
+transcripts have to count. Codex has no `--session-id` to find a transcript by, so
+there is nothing to scan — but `--json` makes stdout an event stream, which is the
+better signal anyway: an unrelated interactive session cannot fake it. Pick whichever
+signal the host actually gives you and say which in the descriptor's `watchdog` field.
+
+**How tightly the agent is confined, and whether you can say so honestly.** Claude Code
+takes a per-command allowlist. Codex has no equivalent: it confines by sandbox, so
+`workspace-write` plus `--cd <vault>` is the closest thing, which permits reads the
+Claude path forbids. That is a real difference in what the kit promises, so it is
+written down here rather than glossed.
+
+If you find yourself editing a second file to add an agent, the abstraction has leaked,
+and the fix is to move the agent-specific part into `lib/host.mjs` rather than spread it
 further.
