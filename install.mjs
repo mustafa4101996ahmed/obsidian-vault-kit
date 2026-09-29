@@ -235,6 +235,17 @@ if (fs.existsSync(VAULT) && fs.readdirSync(VAULT).length > 0) {
   warn('Existing files are never overwritten; only missing ones are added.');
 }
 
+// Must run before copyIfAbsent: copyIfAbsent fills in any missing scaffold file,
+// AGENTS.md included, so if it ran first an existing vault's missing AGENTS.md would
+// already be sitting there (as generic boilerplate) by the time migrateContract looked
+// -- it would see both files "present" and leave the user's edited CLAUDE.md stranded
+// as the one Claude Code reads while Codex reads the boilerplate. Migrating first means
+// copyIfAbsent only ever fills in what migrateContract legitimately left alone.
+const contract = migrateContract(VAULT, { dryRun: DRY });
+if (contract === 'moved') did('CLAUDE.md moved to AGENTS.md, your edits kept (backup alongside)');
+else if (contract === 'both-present') already('AGENTS.md is the contract (CLAUDE.md left as it is)');
+else if (contract === 'would-move') plan('move CLAUDE.md to AGENTS.md and leave a pointer');
+
 const copied = copyIfAbsent(SCAFFOLD, VAULT, { dryRun: DRY, skip: ['_gitignore'] });
 if (DRY) {
   plan(`create ${copied.dirs.length} directories and ${copied.created.length} files`);
@@ -245,11 +256,6 @@ if (DRY) {
 } else {
   already(`vault complete (${copied.kept.length} file(s) already in place)`);
 }
-
-const contract = migrateContract(VAULT, { dryRun: DRY });
-if (contract === 'moved') did('CLAUDE.md moved to AGENTS.md, your edits kept (backup alongside)');
-else if (contract === 'both-present') already('AGENTS.md is the contract (CLAUDE.md left as it is)');
-else if (contract === 'would-move') plan('move CLAUDE.md to AGENTS.md and leave a pointer');
 
 const gi = installGitignore(SCAFFOLD, VAULT, { dryRun: DRY });
 if (gi === 'installed') did('.gitignore installed');

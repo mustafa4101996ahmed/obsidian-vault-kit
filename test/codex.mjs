@@ -428,4 +428,41 @@ console.log(migrateContract(${JSON.stringify(vault)}));
   fs.rmSync(home, { recursive: true, force: true });
 }
 
+{
+  // The block above calls migrateContract directly and proves nothing about install
+  // order. copyIfAbsent used to run first, which fills in any scaffold file missing
+  // from an existing vault -- AGENTS.md included -- before migrateContract ever looks.
+  // That leaves migrateContract seeing both files "present" and moving nothing, so the
+  // user's edited CLAUDE.md is stranded as Claude's contract while Codex reads the
+  // freshly-copied boilerplate. Only running the real installer catches that ordering
+  // bug; a direct call to migrateContract cannot see it.
+  const { home, env } = makeHome('vault-kit-contract-upgrade-');
+  const vault = path.join(home, 'v');
+  fs.mkdirSync(vault, { recursive: true });
+  // A home directory is enough for detection, same convention as section 8.
+  fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+
+  const SENTINEL = 'MY OWN RULE: never file under areas/.';
+  fs.writeFileSync(path.join(vault, 'CLAUDE.md'), `# Vault contract\n\n${SENTINEL}\n`);
+
+  const installer = path.resolve('install.mjs');
+  const r = run(installer, ['--vault', vault, '--host', 'codex', '--no-git'], env);
+  eq('install exits clean over an existing edited CLAUDE.md', r.code, 0);
+
+  const agents = fs.readFileSync(path.join(vault, 'AGENTS.md'), 'utf8');
+  const claude = fs.readFileSync(path.join(vault, 'CLAUDE.md'), 'utf8');
+
+  has("the user's edit became AGENTS.md's content", agents, SENTINEL);
+  truthy('the pointer left behind does not carry the edit', !claude.includes(SENTINEL));
+  has('CLAUDE.md points at AGENTS.md', claude, 'AGENTS.md');
+  truthy('the original was backed up',
+    fs.readdirSync(vault).some((f) => f.startsWith('CLAUDE.md.bak-')));
+  // The tell for the ordering bug: if copyIfAbsent ran first, this scaffold-only
+  // heading would be sitting in AGENTS.md instead of the user's real contract.
+  truthy('no scaffold boilerplate landed in AGENTS.md instead of the edit',
+    !agents.includes('Graph Health Rules'));
+
+  fs.rmSync(home, { recursive: true, force: true });
+}
+
 summary();
