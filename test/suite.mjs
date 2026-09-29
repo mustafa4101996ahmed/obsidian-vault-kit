@@ -112,8 +112,10 @@ head('2. Install');
 {
   const { out, code } = install(['--vault', VAULT]);
   eq('exit code', code, 0);
-  // CLAUDE.md and AGENTS.md are two files now, not one -- migrateContract split the
-  // vault's single contract file into a pointer plus the real contract.
+  // A fresh install: there is no existing CLAUDE.md for migrateContract to split, so
+  // it returns 'nothing-to-do' and copyIfAbsent writes both CLAUDE.md and AGENTS.md
+  // straight from the scaffold. 15, not the pre-Codex 12, because this branch added
+  // three files: AGENTS.md, and codex-history-ingest's SKILL.md plus its reference doc.
   eq('markdown notes in the vault', countMd(), 15);
   eq('skill links', links().length, 8);
   truthy('.gitignore installed', fs.existsSync(path.join(VAULT, '.gitignore')));

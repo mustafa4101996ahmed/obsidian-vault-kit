@@ -16,7 +16,7 @@ This skill can be invoked directly or via the `wiki-history-ingest` router (`/wi
 
 ## Before You Start
 
-1. **Resolve config** — read `~/.obsidian-wiki/config` if it exists, otherwise use `OBSIDIAN_VAULT_PATH` = `~/Documents/Obsidian\ Vault`. The Claude history path defaults to `~/.claude`.
+1. **Resolve config** — read `~/.obsidian-wiki/config.json` if it exists, otherwise use `OBSIDIAN_VAULT_PATH` = `~/Documents/Obsidian\ Vault`. The Claude history path defaults to `~/.claude`.
 2. Read `.manifest.json` at the vault root to check what has already been ingested.
 3. Read `index.md` at the vault root to understand what the wiki already contains.
 
@@ -397,7 +397,7 @@ Update `index.md` and `log.md`:
 - [TIMESTAMP] CLAUDE_HISTORY_INGEST projects=N sessions=M memory_files=P pages_updated=X pages_created=Y mode=append|full
 ```
 
-**`hot.md`** — Read `$OBSIDIAN_VAULT_PATH/hot.md` (create from the template in `wiki-ingest` if missing). Update **Recent Activity** with a one-line summary — e.g. "Ingested 8 Claude sessions across 2 projects; surfaced patterns in Next.js ISR and Sanity CMS integration." Keep the last 3 operations. Update `updated` timestamp.
+**`hot.md`** — Read `$OBSIDIAN_VAULT_PATH/hot.md` (create from the template in `obsidian-wiki-ingest` if missing). Update **Recent Activity** with a one-line summary — e.g. "Ingested 8 Claude sessions across 2 projects; surfaced patterns in Next.js ISR and Sanity CMS integration." Keep the last 3 operations. Update `updated` timestamp.
 
 ### Connection Rules for new pages
 
