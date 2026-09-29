@@ -126,9 +126,10 @@ The installer prints this warning every time it wires up Codex, because the spik
 confirmed Codex's runtime behaviour could not be run on the development machine — `codex` was not
 installed there:
 
-> Codex requires this hook to be trusted before it fires. Run `codex` once and approve the hook, then
-> check ~/.codex/config.toml has a trusted_hash for it. Until then the daily ingest is never
-> triggered.
+> Codex will not fire this hook until it trusts it, so the daily ingest is not triggered yet. Start
+> `codex` once interactively and approve the hook. The hook itself is verified correct - it fires
+> under --dangerously-bypass-hook-trust - but what grants trust was not, because a non-interactive
+> run never prompts.
 
 Do that now, before you get to step 7. Claude's hook needs no equivalent step. To check it worked:
 run one Codex turn from inside the vault, then look for `~/.obsidian-wiki/.pending_ingest` — if it's
@@ -353,8 +354,8 @@ are version-controlled with your notes.
 | "finished without updating .manifest.json" | The run did nothing | Read the log above that line. Don't re-run blind |
 | "the run stalled and was stopped" | The engine hung for 20 minutes | Usually transient. Re-run with `--force` |
 | Your agent can't see the skills | Links missing or shadowed | Re-run `node install.mjs`, read the skill warnings |
-| Nothing happens after a Codex turn | The hook isn't trusted, or isn't installed | Check it's in `~/.codex/hooks.json`, then check `~/.codex/config.toml` has a `trusted_hash` entry for it |
-| Codex exits complaining it isn't in a git repo | Unconfirmed — possibly an older Codex build | The runner already passes `--skip-git-repo-check`; if you still see this, try upgrading Codex |
+| Nothing happens after a Codex turn | The hook isn't trusted, or isn't installed | Check it's in `~/.codex/hooks.json`. If it is, Codex has not trusted it: a run confirmed the hook is correct but only fires once trusted, and a non-interactive run never prompts, so grant it from an interactive `codex` session |
+| Codex exits complaining it isn't in a git repo | An older Codex build; `--skip-git-repo-check` exists in 0.159.0, which is what this was verified against | The runner already passes it, so upgrade Codex |
 | Codex ran but the vault wasn't written to | Wrong vault path, or a narrower sandbox | Check `vaultPath` in `~/.obsidian-wiki/config.json` is right — that's what `--cd` uses — and that nothing restricts the sandbox below `workspace-write` |
 | No notifications | No notifier installed | macOS works out of the box. Linux: install `libnotify`. Windows: `Install-Module BurntToast -Scope CurrentUser` |
 | Obsidian shows no notes | Wrong folder opened | Re-open, picking the folder containing `AGENTS.md` |

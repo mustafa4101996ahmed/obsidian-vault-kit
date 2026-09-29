@@ -169,6 +169,9 @@ under two different source types.
 | Failure | How you notice | Guard |
 |---|---|---|
 | Run reports success, ingested nothing | Weeks later, wondering why the vault is thin | Manifest stamp check |
+| The ingest re-queues itself, so every run does full work forever | Never on its own: the pending flag simply never clears, and a day with nothing pending stops being free | `mark-pending` no-ops when `OBSIDIAN_WIKI_INGEST` is set. Claude escapes this via `--setting-sources project,local`; Codex has no equivalent, and a real run confirmed its hook does fire |
+| A stalled agent outlives the watchdog on Windows | The log says the run was stopped while the task is still going, still holding the vault | `treeKillCommand` escalates to `taskkill /T`, because killing a `.cmd` shim kills cmd.exe and leaves the node grandchild |
+| Daily logs accumulate for as long as the machine runs | Years later, a logs directory nobody looks at | `pruneLogs` keeps 90 days; a single day's file is capped at 10 MB |
 | Engine ingests only its own history if the prompt loses a source | The vault accrues one agent's history and not the other's, while every run reports success | `CLAUDE.buildArgs` grants one `--add-dir` per source host's sessions directory, not just the engine's own |
 | Codex hook installed but never trusted | Weeks later: the vault stopped growing and nothing errored | Installer prints the trust step instead of reporting success |
 | Every notification read the log's own placeholder text | Indefinitely — every run's headline said the same generic line, whether or not the ingest worked | `log.md`'s line-format examples have the leading `- ` marker removed, so they can't out-sort a real entry |
@@ -186,6 +189,7 @@ under two different source types.
 
 | To change | Edit |
 |---|---|
+| How long daily logs are kept, and one file's cap | `LOG_KEEP_DAYS` / `LOG_MAX_BYTES` in `lib/output.mjs` |
 | Zones, frontmatter, graph rules | `AGENTS.md` in the vault (`CLAUDE.md` is a pointer to it) |
 | The model an ingest uses | `hosts.<id>.model` in `~/.obsidian-wiki/config.json`, or `install.mjs --model` (applies to the engine) |
 | Which agent runs the daily ingest | `engine` in `~/.obsidian-wiki/config.json`, or `install.mjs --engine codex` |

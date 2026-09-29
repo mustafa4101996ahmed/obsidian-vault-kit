@@ -94,7 +94,8 @@ every push.
 | A clean run that changes nothing is a failure | Verified: the runner exits 1 and keeps the queue |
 | Both agents on one machine: one schedule, both histories ingested | Verified through install, config and the runner's arguments |
 | Upgrading an existing install: config migrates on read, an edited `CLAUDE.md` becomes `AGENTS.md` with a backup | Verified end to end through the installer |
-| The Codex path against the real `codex` CLI | **Not yet.** Every Codex test drives a stub; the invocation, paths and hook format were derived by reading its source |
+| Codex's flags, hook format and trust behaviour | Verified against Codex 0.159.0: every documented flag exists, the hook the installer writes is accepted and fires, and trust is genuinely what gates it |
+| A full Codex ingest end to end | Not yet. The runner is tested against a stub agent; only the plumbing around the model call is covered |
 | The graphs above | Rendered from a real ingest of five public documents |
 
 ## Quick start
@@ -189,12 +190,13 @@ so your changes are version-controlled alongside your notes.
 
 ## Tests
 
-CI runs three suites; a branch that only passes the first can still fail CI.
+CI runs four suites; a branch that only passes the first can still fail CI.
 
 ```bash
-node test/suite.mjs          # 89 checks: install, uninstall, dry run, scheduler, shell block, the full runner path
-node test/codex.mjs          # 144 checks: host registry, hooks, skill links, config migration, install per host
-node test/runner.mjs         # 19 checks: the runner against a stubbed Codex CLI -- slow, ~2 minutes (the watchdog test)
+node test/suite.mjs          # 71 checks: install, uninstall, dry run, scheduler, shell block
+node test/host.mjs           # 66 checks: host registry, invocation arguments, event condensing, log pruning
+node test/codex.mjs          # 102 checks: config migration, per-host hooks and skill links, install per host
+node test/runner.mjs         # 42 checks: the runner end to end against stub agents -- slow, ~2 minutes (the watchdog)
 node test/suite.mjs --keep   # leave the throwaway home behind to inspect
 ```
 
@@ -208,8 +210,10 @@ filenames used UTC, so east of Greenwich `wiki-log` reported no log for a day th
 The shell block was written to `.zshrc` on a Linux box with no zsh installed. systemd unit
 files ignored `XDG_CONFIG_HOME` and landed where systemd was not looking. When Codex support
 landed, the installer linked no skills at all on a machine with neither agent installed — and
-every local run passed, because the machine it was written on had both. None of them is
-visible by reading.
+every local run passed, because the machine it was written on had both. Then installing Codex
+locally broke four tests that had quietly depended on it being absent. And the ingest turned out
+to re-queue itself under Codex, because the trick that stops that under Claude is a flag Codex
+has no equivalent of. None of them is visible by reading.
 
 ## Repository map
 
@@ -221,14 +225,16 @@ lib/schedule.mjs       launchd | systemd | cron | schtasks, behind one interface
 lib/vault.mjs          scaffold copy, manifest stamping, skill links, contract migration
 lib/hooks.mjs          Stop-hook merge into either host's config, backed up and de-duplicated
 lib/prompt.mjs         what the daily run asks for, one pass per history source
+lib/output.mjs         condensing an event stream for a person, and bounding the logs
 lib/shell.mjs          the marked block added to your shell startup file
 lib/notify.mjs         osascript | notify-send | toast | silent
 bin/run-ingest.mjs     the daily runner. Almost entirely guards
 bin/mark-pending.mjs   Stop-hook target, shared by both hosts. Must never throw
 test/harness.mjs       assertions and the throwaway-home discipline the suites share
-test/suite.mjs         install, schedule, shell block, the full runner path
-test/codex.mjs         the host registry, config migration, per-host hooks and links
-test/runner.mjs        the runner end to end, including the stall watchdog. Slow
+test/suite.mjs         install, uninstall, schedule, shell block
+test/host.mjs          the host registry, event condensing, log pruning. All in process
+test/codex.mjs         config migration, per-host hooks and links, install per host
+test/runner.mjs        the runner end to end for both hosts, incl. the stall watchdog. Slow
 vault-scaffold/        becomes your vault. Ships with no notes
 ```
 
