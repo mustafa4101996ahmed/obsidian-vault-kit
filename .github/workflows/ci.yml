@@ -41,6 +41,9 @@ jobs:
       - name: Codex host suite
         run: node test/codex.mjs
 
+      - name: Runner end-to-end suite (slow, ~2 min -- exercises the stall watchdog)
+        run: node test/runner.mjs
+
   # A green Windows run is only meaningful if the Windows-specific paths actually
   # ran, rather than being skipped. Assert the ones that matter were exercised.
   windows-specifics:
