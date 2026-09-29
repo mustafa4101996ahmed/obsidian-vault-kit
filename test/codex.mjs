@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, has, head, makeHome, run, summary, truthy } from './harness.mjs';
+import { eq, has, head, KIT, makeHome, moduleUrl, run, summary, truthy } from './harness.mjs';
 
 const { HOSTS, hostById, detectHosts, resolveEngine } = await import('../lib/host.mjs');
 const { buildPrompt } = await import('../lib/prompt.mjs');
@@ -116,7 +116,7 @@ head('4. Config migration');
   // Read it in a child process, because platform.mjs resolves HOME at module load.
   const reader = path.join(home, 'read.mjs');
   fs.writeFileSync(reader, `
-import { readConfig } from ${JSON.stringify(path.resolve('lib/platform.mjs'))};
+import { readConfig } from ${JSON.stringify(moduleUrl('lib/platform.mjs'))};
 console.log(JSON.stringify(readConfig()));
 `);
   const r = run(reader, [], env);
@@ -191,8 +191,8 @@ head('5. Stop hooks, per host');
 
   const driver = path.join(home, 'hook.mjs');
   fs.writeFileSync(driver, `
-import { hostById } from ${JSON.stringify(path.resolve('lib/host.mjs'))};
-import { installStopHook, removeStopHook, hookCommand } from ${JSON.stringify(path.resolve('lib/hooks.mjs'))};
+import { hostById } from ${JSON.stringify(moduleUrl('lib/host.mjs'))};
+import { installStopHook, removeStopHook, hookCommand } from ${JSON.stringify(moduleUrl('lib/hooks.mjs'))};
 const host = hostById(process.argv[2]);
 const action = process.argv[3];
 const cmd = hookCommand(process.execPath, '/w');
@@ -235,8 +235,8 @@ head('6. Skill links, per host');
 
   const driver = path.join(home, 'link.mjs');
   fs.writeFileSync(driver, `
-import { HOSTS } from ${JSON.stringify(path.resolve('lib/host.mjs'))};
-import { linkSkills } from ${JSON.stringify(path.resolve('lib/vault.mjs'))};
+import { HOSTS } from ${JSON.stringify(moduleUrl('lib/host.mjs'))};
+import { linkSkills } from ${JSON.stringify(moduleUrl('lib/vault.mjs'))};
 console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, HOSTS)));
 `);
   const r = run(driver, [], env);
@@ -278,7 +278,7 @@ console.log(JSON.stringify(linkSkills(${JSON.stringify(vault)}, HOSTS)));
 
   const driver = path.join(home, 'link-fail.mjs');
   fs.writeFileSync(driver, `
-import { linkSkills } from ${JSON.stringify(path.resolve('lib/vault.mjs'))};
+import { linkSkills } from ${JSON.stringify(moduleUrl('lib/vault.mjs'))};
 const hosts = [
   { id: 'claude', skillsDir: ${JSON.stringify(path.join(home, '.claude', 'skills'))} },
   { id: 'codex', skillsDir: ${JSON.stringify(path.join(home, '.codex', 'skills'))} },
@@ -308,7 +308,7 @@ head('7. Installing for a chosen host');
   // Pretend Codex is installed: a home directory is enough for detection.
   fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
 
-  const installer = path.resolve('install.mjs');
+  const installer = path.join(KIT, 'install.mjs');
   const r = run(installer, ['--vault', vault, '--host', 'codex', '--no-git'], env);
   eq('install exits clean', r.code, 0);
   has('it names the host it wired up', r.out, 'Codex CLI');
@@ -423,7 +423,7 @@ head('8. The vault contract moves to AGENTS.md');
 
   const driver = path.join(home, 'contract.mjs');
   fs.writeFileSync(driver, `
-import { migrateContract } from ${JSON.stringify(path.resolve('lib/vault.mjs'))};
+import { migrateContract } from ${JSON.stringify(moduleUrl('lib/vault.mjs'))};
 console.log(migrateContract(${JSON.stringify(vault)}));
 `);
 
@@ -454,7 +454,7 @@ console.log(migrateContract(${JSON.stringify(vault)}));
   const SENTINEL = 'MY OWN RULE: never file under areas/.';
   fs.writeFileSync(path.join(vault, 'CLAUDE.md'), `# Vault contract\n\n${SENTINEL}\n`);
 
-  const installer = path.resolve('install.mjs');
+  const installer = path.join(KIT, 'install.mjs');
   const r = run(installer, ['--vault', vault, '--host', 'codex', '--no-git'], env);
   eq('install exits clean over an existing edited CLAUDE.md', r.code, 0);
 
@@ -477,7 +477,7 @@ console.log(migrateContract(${JSON.stringify(vault)}));
 head('9. Every source the router names is shipped');
 
 {
-  const skills = path.resolve('vault-scaffold/.agents/skills');
+  const skills = path.join(KIT, 'vault-scaffold/.agents/skills');
   const router = fs.readFileSync(path.join(skills, 'wiki-history-ingest', 'SKILL.md'), 'utf8');
 
   // The runner asks for a source by name; a row pointing at a skill that is not
