@@ -112,7 +112,7 @@ Open a new terminal afterwards; the shell block only loads in a fresh one. Windo
 same way, with `$HOME` in place of `~`.
 
 <p align="center">
-  <img src="docs/images/install.svg" alt="The installer's dry run: each step it would take, from creating the vault through linking seven skills and registering the Stop hook, ending in zero changes made" width="700">
+  <img src="docs/images/install.svg" alt="The installer's dry run: each step it would take, from creating the vault through linking eight skills and registering the Stop hook, ending in zero changes made" width="700">
 </p>
 
 ```bash
@@ -122,9 +122,9 @@ node install.mjs --uninstall                 # remove everything except your not
 ```
 
 > [!NOTE]
-> The installer never overwrites. Existing files are kept, and both `settings.json` and your
-> shell startup file are copied to a timestamped `.bak-` before either is touched. Run it
-> again whenever you like.
+> The installer never overwrites. Existing files are kept, and each hook file it touches —
+> `settings.json` for Claude, `hooks.json` for Codex — plus your shell startup file, is copied to
+> a timestamped `.bak-` first. Run it again whenever you like.
 
 ## Feeding the vault
 
@@ -163,14 +163,15 @@ If systemd is detected but refuses the unit, the kit removes the files it wrote 
 through to cron rather than leaving orphaned units and no schedule. Where no scheduler exists
 at all, the install still succeeds and tells you to run `wiki-history` yourself.
 
-## The seven skills
+## The eight skills
 
-Run these inside a Claude session, from the vault folder.
+Run these inside an agent session, from the vault folder.
 
 | Command | What it does |
 |---|---|
 | `/obsidian-wiki-ingest` | Turn a document into linked, filed notes |
 | `/claude-history-ingest` | Mine Claude Code sessions and memory files |
+| `/codex-history-ingest` | Mine Codex CLI sessions from `~/.codex/sessions/` |
 | `/wiki-history-ingest claude` | The same in bulk, for everything new since last time |
 | `/wiki-agent` | Ask a question of your history, then ingest just the answer |
 | `/daily-update` | Rebuild the index, refresh `hot.md`, check graph health |

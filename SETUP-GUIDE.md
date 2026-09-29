@@ -21,7 +21,7 @@ except where a section says otherwise.
 **Obsidian** from [obsidian.md](https://obsidian.md). Install it, then close it again. You'll point
 it at the vault later.
 
-**Node.js**, the LTS build from [nodejs.org](https://nodejs.org), or your package manager. Node 18 or
+**Node.js**, the LTS build from [nodejs.org](https://nodejs.org), or your package manager. Node 22 or
 newer. Check:
 
 ```bash
@@ -319,7 +319,7 @@ rules.
 
 ---
 
-## 8. The seven skills
+## 8. The eight skills
 
 Run these from inside the vault folder, in an agent session.
 
@@ -327,6 +327,7 @@ Run these from inside the vault folder, in an agent session.
 |---|---|
 | `/obsidian-wiki-ingest` | Turn a document into linked notes |
 | `/claude-history-ingest` | Mine your Claude Code sessions and memory files |
+| `/codex-history-ingest` | Mine your Codex CLI sessions from `~/.codex/sessions/` |
 | `/wiki-history-ingest claude` | The same, in bulk, for everything new since last time |
 | `/wiki-agent` | Ask a question of your session history, then ingest just the answer |
 | `/daily-update` | Rebuild the index, refresh `hot.md`, check graph health |
