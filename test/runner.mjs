@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { eq, has, head, makeHome, run, summary, truthy } from './harness.mjs';
+import { eq, has, head, KIT, makeHome, run, summary, truthy } from './harness.mjs';
 
 head('1. The runner, against a codex stub');
 
@@ -18,7 +18,7 @@ head('1. The runner, against a codex stub');
   const wiki = path.join(home, '.obsidian-wiki');
 
   fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
-  const inst = run(path.resolve('install.mjs'), ['--vault', vault, '--host', 'codex', '--no-git'], env);
+  const inst = run(path.join(KIT, 'install.mjs'), ['--vault', vault, '--host', 'codex', '--no-git'], env);
   eq('install for codex exits clean', inst.code, 0);
 
   // A stub that proves it was invoked, then moves the ledger and the log so the

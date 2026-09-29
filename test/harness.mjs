@@ -5,8 +5,25 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const IS_WIN = process.platform === 'win32';
+
+// The repo root, derived from this file's own URL rather than process.cwd() --
+// the same trick suite.mjs already used before this file existed. A bare
+// path.resolve('lib/x.mjs') only finds the right file when the suite happens to be
+// run from the repo root; from any other cwd it resolves to nothing. Both new
+// suites used to do exactly that, which is why they only worked from one directory.
+export const KIT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+// Turns a repo-relative path into an import specifier that works on every platform.
+// A bare absolute path happens to work as one on POSIX, but not on Windows: an
+// import of "D:\a\...\lib\platform.mjs" is not valid ESM syntax and Node throws
+// before the driver script it's embedded in ever runs. A file:// URL is valid
+// everywhere, so every generated driver builds its imports through this instead.
+export function moduleUrl(relPath) {
+  return pathToFileURL(path.join(KIT, relPath)).href;
+}
 
 let pass = 0; let fail = 0; let skip = 0;
 const failures = [];
