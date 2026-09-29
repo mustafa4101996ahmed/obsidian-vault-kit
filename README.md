@@ -4,8 +4,8 @@
 
 # Obsidian Vault Kit
 
-**Everything you worked out with Claude Code, turned into a knowledge graph you can
-query.** Point it at a document and it writes linked, filed notes. Use Claude Code
+**Everything you worked out with Claude Code or Codex, turned into a knowledge graph you
+can query.** Point it at a document and it writes linked, filed notes. Use your agent
 normally and it mines your own sessions for whatever was worth keeping, on its own,
 once a day.
 
@@ -37,7 +37,7 @@ once a day.
 
 ## How it works
 
-You drop a document in, or you simply use Claude Code. Either way the vault fills up.
+You drop a document in, or you simply use your agent. Either way the vault fills up.
 
 <table>
 <tr>
@@ -59,9 +59,9 @@ applied it.
 
 ```
   a document you drop in --+
-                          +--> Claude reads it, decides which zone each
-  your Claude Code   -----+    piece belongs in, writes linked notes
-  sessions and memory          and records the source in the ledger
+                           +--> your agent reads it, decides which zone
+  your Claude Code or   ---+    each piece belongs in, writes linked notes
+  Codex sessions                and records the source in the ledger
                                              |
                                              v
                                a graph you can query, instead of
@@ -79,8 +79,8 @@ link in and one link out. A note nothing points at is a note you will never find
 
 ### What is verified today
 
-Every row below was executed, not reviewed. CI runs the suite on all three platforms on every
-push.
+Every row below was executed, not reviewed. CI runs all three suites on all three platforms on
+every push.
 
 | Surface | State |
 |---|---|
@@ -92,6 +92,9 @@ push.
 | Junctions without administrator rights | Probed in CI with a de-elevated basic-user token |
 | The full runner path, agent spawn to drained queue | Verified against a stub agent on all three platforms |
 | A clean run that changes nothing is a failure | Verified: the runner exits 1 and keeps the queue |
+| Both agents on one machine: one schedule, both histories ingested | Verified through install, config and the runner's arguments |
+| Upgrading an existing install: config migrates on read, an edited `CLAUDE.md` becomes `AGENTS.md` with a backup | Verified end to end through the installer |
+| The Codex path against the real `codex` CLI | **Not yet.** Every Codex test drives a stub; the invocation, paths and hook format were derived by reading its source |
 | The graphs above | Rendered from a real ingest of five public documents |
 
 ## Quick start
@@ -118,6 +121,8 @@ same way, with `$HOME` in place of `~`.
 ```bash
 node install.mjs --vault "/somewhere/else"   # put the vault elsewhere
 node install.mjs --schedule 19:00            # turn on the daily ingest
+node install.mjs --host codex                # wire up one agent, not every one found
+node install.mjs --engine claude             # which agent runs the daily ingest
 node install.mjs --uninstall                 # remove everything except your notes
 ```
 
@@ -172,7 +177,7 @@ Run these inside an agent session, from the vault folder.
 | `/obsidian-wiki-ingest` | Turn a document into linked, filed notes |
 | `/claude-history-ingest` | Mine Claude Code sessions and memory files |
 | `/codex-history-ingest` | Mine Codex CLI sessions from `~/.codex/sessions/` |
-| `/wiki-history-ingest claude` | The same in bulk, for everything new since last time |
+| `/wiki-history-ingest claude\|codex` | The same in bulk, for everything new since last time |
 | `/wiki-agent` | Ask a question of your history, then ingest just the answer |
 | `/daily-update` | Rebuild the index, refresh `hot.md`, check graph health |
 | `/memory-bridge` | Compare what different AI tools contributed |
@@ -198,30 +203,38 @@ throwaway home, so it never reads or writes anything of yours. Platform-specific
 are skipped rather than silently passed, and the summary prints the skip count, so a green run
 on one OS is never mistaken for a green run everywhere.
 
-Three of this project's bugs were only findable by running the code somewhere else. Log
+Several of this project's bugs were only findable by running the code somewhere else. Log
 filenames used UTC, so east of Greenwich `wiki-log` reported no log for a day that had one.
 The shell block was written to `.zshrc` on a Linux box with no zsh installed. systemd unit
-files ignored `XDG_CONFIG_HOME` and landed where systemd was not looking. None of the three is
+files ignored `XDG_CONFIG_HOME` and landed where systemd was not looking. When Codex support
+landed, the installer linked no skills at all on a machine with neither agent installed — and
+every local run passed, because the machine it was written on had both. None of them is
 visible by reading.
 
 ## Repository map
 
 ```
 install.mjs            one installer, all platforms. --dry-run and --uninstall
+lib/host.mjs           Claude Code | Codex, behind one interface
 lib/platform.mjs       paths, OS detection, capability probes
 lib/schedule.mjs       launchd | systemd | cron | schtasks, behind one interface
-lib/vault.mjs          scaffold copy, manifest stamping, skill links
-lib/hooks.mjs          settings.json merge, backed up and de-duplicated
+lib/vault.mjs          scaffold copy, manifest stamping, skill links, contract migration
+lib/hooks.mjs          Stop-hook merge into either host's config, backed up and de-duplicated
+lib/prompt.mjs         what the daily run asks for, one pass per history source
 lib/shell.mjs          the marked block added to your shell startup file
 lib/notify.mjs         osascript | notify-send | toast | silent
 bin/run-ingest.mjs     the daily runner. Almost entirely guards
-bin/mark-pending.mjs   Stop-hook target. Must never throw
-test/suite.mjs         the suite CI runs on all three platforms
+bin/mark-pending.mjs   Stop-hook target, shared by both hosts. Must never throw
+test/harness.mjs       assertions and the throwaway-home discipline the suites share
+test/suite.mjs         install, schedule, shell block, the full runner path
+test/codex.mjs         the host registry, config migration, per-host hooks and links
+test/runner.mjs        the runner end to end, including the stall watchdog. Slow
 vault-scaffold/        becomes your vault. Ships with no notes
 ```
 
-Only `lib/platform.mjs` and `lib/schedule.mjs` know which operating system they are on. If
-adding a platform means editing a third file, the abstraction has leaked.
+Only `lib/platform.mjs` and `lib/schedule.mjs` know which operating system they are on, and
+only `lib/host.mjs` knows which agent CLI it is talking to. If adding a platform means editing
+a third file, or adding an agent means editing a second one, the abstraction has leaked.
 
 ## Documentation
 
