@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 import {
   CONFIG_PATH, LOCK_PATH, LOG_DIR,
@@ -24,6 +25,23 @@ import {
 } from '../lib/platform.mjs';
 import { HOSTS, hostById } from '../lib/host.mjs';
 import { notify } from '../lib/notify.mjs';
+
+// True only when this file runs directly (the shell block, the scheduler, a
+// terminal), never when it is merely imported -- e.g. by test/codex.mjs, to reach
+// buildPrompt as a pure function. Without this, importing the module would run a
+// real ingest as a side effect: touching the real lock and pending files, and
+// potentially spawning the real agent CLI.
+//
+// Compared through realpath, not a plain path.resolve: on macOS the system temp
+// directory (where every test's throwaway HOME lives) is itself a symlink
+// (/var -> /private/var), so import.meta.url resolves through it while
+// process.argv[1] does not, and a plain string comparison never matches -- which
+// made every runner test below fail to find its own log directory.
+let isMain = false;
+try {
+  isMain = Boolean(process.argv[1])
+    && fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1]);
+} catch { /* argv[1] missing or unreadable: treat this as an import, not a real run */ }
 
 const args = process.argv.slice(2);
 const FORCE = args.includes('--force') || args.includes('-f');
@@ -58,7 +76,10 @@ Config: ${CONFIG_PATH}
 // Logging: everything this script reports lands in today's log, appended.
 // ---------------------------------------------------------------------------
 
-fs.mkdirSync(LOG_DIR, { recursive: true });
+// Guarded like the isMain check above: creating this directory as a side effect of
+// a plain import would land it under whatever HOME the importing process has, real
+// or throwaway, for no reason a test needs.
+if (isMain) fs.mkdirSync(LOG_DIR, { recursive: true });
 const LOG = path.join(LOG_DIR, `${localDateStamp()}.log`);
 
 const QUIET = args.includes('--quiet') || args.includes('-q');
@@ -125,10 +146,14 @@ function fail(reason) {
   process.exit(1);
 }
 
-// Release the lock however we leave, including on Ctrl-C.
-process.on('exit', releaseLock);
-for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-  process.on(sig, () => { releaseLock(); process.exit(130); });
+// Release the lock however we leave, including on Ctrl-C. Guarded by isMain for the
+// same reason as above: a test importing this module for buildPrompt must not
+// register signal handlers in its own process.
+if (isMain) {
+  process.on('exit', releaseLock);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.on(sig, () => { releaseLock(); process.exit(130); });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +215,7 @@ function sessionActiveSince(sessionsDir, sessionId, cutoffMs) {
  * one pass each. The manifest-stamp guard is unaffected: it asks only whether
  * .manifest.json moved, so one pass doing real work still proves the run ingested.
  */
-function buildPrompt(sources) {
+export function buildPrompt(sources) {
   return [
     `Use the wiki-history-ingest skill once for each of these sources, in order: ${sources.join(', ')}.`,
     "For each source, ingest every transcript and memory file that the manifest's per-file",
@@ -226,11 +251,14 @@ async function main() {
   // behaves exactly as it did before Codex support existed.
   const model = engineCfg.model || engine.defaultModel;
 
-  // Every host the install wired up contributes a history source, whichever one
-  // is doing the running. That is what makes one schedule right for a machine
-  // with both agents on it.
-  const sources = HOSTS.filter((h) => cfg.hosts && cfg.hosts[h.id]).map((h) => h.historyArg);
-  if (!sources.length) sources.push(engine.historyArg);
+  // Every host the install wired up contributes a history source, whichever one is
+  // doing the running. That is what makes one schedule right for a machine with
+  // both agents on it. The host descriptors travel alongside the plain historyArg
+  // strings because buildArgs needs each source's sessionsDir, not just its name,
+  // to grant read access to it -- see CLAUDE.buildArgs in lib/host.mjs.
+  const wiredHosts = HOSTS.filter((h) => cfg.hosts && cfg.hosts[h.id]);
+  const sourceHosts = wiredHosts.length ? wiredHosts : [engine];
+  const sources = sourceHosts.map((h) => h.historyArg);
 
   if (!fs.existsSync(vault)) fail(`the vault is missing at ${vault}`);
 
@@ -262,7 +290,7 @@ async function main() {
   const startedMs = fs.statSync(RUN_STARTED).mtimeMs;
 
   const sessionId = randomUUID();
-  const hostArgs = engine.buildArgs({ prompt: buildPrompt(sources), model, sessionId, vault });
+  const hostArgs = engine.buildArgs({ prompt: buildPrompt(sources), model, sessionId, vault, sourceHosts });
 
   // Windows will not let Node spawn a .cmd or .bat directly: the mitigation for the
   // 2024 argument-injection issue blocks it, and npm's global installs -- Claude's
@@ -405,6 +433,8 @@ function newestLogEntry(logMd) {
   }
 }
 
-main().catch((err) => {
-  fail(err && err.stack ? err.stack.split('\n')[0] : String(err));
-});
+if (isMain) {
+  main().catch((err) => {
+    fail(err && err.stack ? err.stack.split('\n')[0] : String(err));
+  });
+}
