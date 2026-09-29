@@ -7,7 +7,7 @@ import path from 'node:path';
 import { eq, has, head, makeHome, run, summary, truthy } from './harness.mjs';
 
 const { HOSTS, hostById, detectHosts, resolveEngine } = await import('../lib/host.mjs');
-const { buildPrompt } = await import('../bin/run-ingest.mjs');
+const { buildPrompt } = await import('../lib/prompt.mjs');
 
 head('1. The host registry');
 

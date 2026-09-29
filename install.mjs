@@ -57,7 +57,7 @@ Obsidian vault kit installer
   --host <spec>         which agent to wire up: auto (default), claude, codex, both
   --engine <id>         which agent runs the daily ingest (default: claude if present)
   --schedule <HH:MM>    also turn on the daily ingest at this time
-  --model <name>        model the ingest uses (default: sonnet for Claude, the host's own default for Codex)
+  --model <name>        model the ingest uses (default: ${hostById('claude').defaultModel} for Claude, the host's own default for Codex)
   --no-git              skip initialising the vault as a git repo
   --uninstall           remove the hook, shell block, schedule and skill links
   --help, -h            this text
