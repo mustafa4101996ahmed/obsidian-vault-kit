@@ -1,10 +1,13 @@
 # Codex Data Format — Detailed Reference
 
-This reference describes practical, observed structures for Codex local history ingestion.
+This reference describes practical structures for Codex local history ingestion.
+
+Derived from the `openai/codex` source, not from files observed on a running install;
+verify field names against your own `~/.codex`.
 
 ## Root Layout
 
-`~/.codex/` usually contains:
+Per the source, `~/.codex/` contains:
 
 - `sessions/YYYY/MM/DD/rollout-*.jsonl` — primary structured session logs
 - `archived_sessions/` — archived rollouts
@@ -17,7 +20,7 @@ On Windows, read the same tree under `%USERPROFILE%\.codex\` (e.g.
 
 ## Session Index
 
-`~/.codex/session_index.jsonl` entries are one JSON object per line, commonly:
+`~/.codex/session_index.jsonl` entries are one JSON object per line, per the source:
 
 ```json
 {"id":"<thread-id>","thread_name":"<title>","updated_at":"<timestamp>"}
@@ -46,7 +49,7 @@ Common `type` values:
 
 ### Typical payload subtypes
 
-Observed examples include:
+Per the source:
 
 - `event_msg.payload.type`: `task_started`, `user_message`, `agent_message`, `mcp_tool_call_end`, `exec_command_end`, `token_count`
 - `response_item.payload.type`: `message`, `function_call`, `function_call_output`, `reasoning`
