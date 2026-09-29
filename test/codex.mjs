@@ -323,8 +323,10 @@ head('7. Installing for a chosen host');
   truthy('skills were linked into codex', fs.existsSync(path.join(home, '.codex', 'skills', 'wiki-agent')));
   truthy('nothing was written to ~/.claude', !fs.existsSync(path.join(home, '.claude', 'settings.json')));
 
-  // Naming an absent host is an error, not a silent skip.
-  const { home: home2, env: env2 } = makeHome('vault-kit-absent-');
+  // Naming an absent host is an error, not a silent skip. withoutAgents strips the
+  // agent CLIs off PATH, because a throwaway HOME alone does not make a host absent on
+  // a machine where it is installed -- which silently inverted this assertion once.
+  const { home: home2, env: env2 } = makeHome('vault-kit-absent-', { withoutAgents: true });
   const r2 = run(installer, ['--vault', path.join(home2, 'v'), '--host', 'codex', '--no-git'], env2);
   truthy('installing for an absent host fails', r2.code !== 0);
   has('and says how to install it', r2.out, 'npm install -g @openai/codex');
@@ -348,7 +350,7 @@ head('7. Installing for a chosen host');
   // A genuinely absent --engine still gets the install hint -- confirms the two
   // messages above did not collapse into one.
   {
-    const { home: home5, env: env5 } = makeHome('vault-kit-engine-absent-');
+    const { home: home5, env: env5 } = makeHome('vault-kit-engine-absent-', { withoutAgents: true });
     const r6 = run(installer, ['--vault', path.join(home5, 'v'), '--engine', 'codex', '--no-git'], env5);
     truthy('a genuinely absent engine fails', r6.code !== 0);
     has('and still carries the install hint', r6.out, 'npm install -g @openai/codex');
