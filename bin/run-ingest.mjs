@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Claude-history -> wiki ingest.
+// Agent history -> wiki ingest.
 //
 // Runs unattended: once a day from the scheduler, or on demand with --force.
 //
@@ -18,10 +18,11 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import {
-  CLAUDE_HOME, CLAUDE_PROJECTS, CONFIG_PATH, LOCK_PATH, LOG_DIR,
+  CONFIG_PATH, LOCK_PATH, LOG_DIR,
   PENDING_FLAG, PENDING_SESSIONS, RUN_STARTED, WIKI_DIR,
   localDateStamp, platformLabel, readConfig,
 } from '../lib/platform.mjs';
+import { HOSTS, hostById } from '../lib/host.mjs';
 import { notify } from '../lib/notify.mjs';
 
 const args = process.argv.slice(2);
@@ -40,7 +41,7 @@ function numArg(name, fallback) {
 
 if (HELP) {
   process.stdout.write(`
-run-ingest  -  ingest Claude Code history into the Obsidian vault
+run-ingest  -  ingest agent history into the Obsidian vault
 
   run-ingest.mjs                  ingest if turns are pending, otherwise exit
   run-ingest.mjs --force          ingest regardless
@@ -151,8 +152,11 @@ function countLines(file) {
  * cannot be wrong; reconstructing can.
  *
  * Subagents write their own transcript files, so delegated work counts as activity.
+ *
+ * sessionsDir is passed in rather than assumed, because it differs per host: Claude
+ * keeps transcripts under ~/.claude/projects, Codex under ~/.codex/sessions.
  */
-function sessionActiveSince(sessionId, cutoffMs) {
+function sessionActiveSince(sessionsDir, sessionId, cutoffMs) {
   let found = false;
   const walk = (dir, depth) => {
     if (found || depth > 4) return;
@@ -177,20 +181,27 @@ function sessionActiveSince(sessionId, cutoffMs) {
       }
     }
   };
-  walk(CLAUDE_PROJECTS, 0);
+  walk(sessionsDir, 0);
   return found;
 }
 
-const PROMPT = [
-  'Use the wiki-history-ingest skill with the argument claude, in append mode:',
-  "ingest every Claude transcript and memory file that the manifest's per-file",
-  'sources rows show as new or modified. Work unattended: do not ask questions;',
-  'make the call and record it in the log.md entry, which goes directly under the',
-  "'# Wiki Log' heading (newest first). If the delta is large, have read-only",
-  'subagents digest groups of sessions while you stay the only writer to the vault.',
-  'Every timestamp you write must come from a real clock reading in UTC, never an',
-  'estimate.',
-].join(' ');
+/**
+ * The router takes one source per invocation, so a machine with both agents gets
+ * one pass each. The manifest-stamp guard is unaffected: it asks only whether
+ * .manifest.json moved, so one pass doing real work still proves the run ingested.
+ */
+function buildPrompt(sources) {
+  return [
+    `Use the wiki-history-ingest skill once for each of these sources, in order: ${sources.join(', ')}.`,
+    "For each source, ingest every transcript and memory file that the manifest's per-file",
+    'sources rows show as new or modified. Work unattended: do not ask questions;',
+    'make the call and record it in the log.md entry, which goes directly under the',
+    "'# Wiki Log' heading (newest first). If the delta is large, have read-only",
+    'subagents digest groups of sessions while you stay the only writer to the vault.',
+    'Every timestamp you write must come from a real clock reading in UTC, never an',
+    'estimate.',
+  ].join(' ');
+}
 
 async function main() {
   log('');
@@ -205,8 +216,17 @@ async function main() {
   }
 
   const vault = cfg.vaultPath;
-  const claudeExe = cfg.claudeExe || 'claude';
-  const model = cfg.model || 'sonnet';
+
+  const engine = hostById(cfg.engine) || hostById('claude');
+  const engineCfg = (cfg.hosts && cfg.hosts[engine.id]) || {};
+  const engineExe = engineCfg.exe || engine.exe;
+  const model = engineCfg.model || null;
+
+  // Every host the install wired up contributes a history source, whichever one
+  // is doing the running. That is what makes one schedule right for a machine
+  // with both agents on it.
+  const sources = HOSTS.filter((h) => cfg.hosts && cfg.hosts[h.id]).map((h) => h.historyArg);
+  if (!sources.length) sources.push(engine.historyArg);
 
   if (!fs.existsSync(vault)) fail(`the vault is missing at ${vault}`);
 
@@ -238,37 +258,26 @@ async function main() {
   const startedMs = fs.statSync(RUN_STARTED).mtimeMs;
 
   const sessionId = randomUUID();
-  const claudeArgs = [
-    '-p', PROMPT,
-    '--model', model,
-    '--setting-sources', 'project,local',
-    '--strict-mcp-config',
-    '--permission-mode', 'acceptEdits',
-    '--add-dir', CLAUDE_PROJECTS,
-    '--session-id', sessionId,
-    '--allowedTools', 'Read', 'Glob', 'Grep', 'Edit', 'Write', 'Agent', 'TodoWrite',
-    'Bash(python:*)', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)',
-    'Bash(date:*)', 'Bash(wc:*)', 'Bash(cp:*)', 'Bash(stat:*)', 'Bash(find:*)',
-    '--disallowedTools', `Edit(${CLAUDE_HOME.split(path.sep).join('/')}/**)`,
-  ];
+  const hostArgs = engine.buildArgs({ prompt: buildPrompt(sources), model, sessionId, vault });
 
   // Windows will not let Node spawn a .cmd or .bat directly: the mitigation for the
-  // 2024 argument-injection issue blocks it, and npm's global installs are exactly
-  // those shims. Route them through the command interpreter, quoting the arguments
-  // ourselves so a prompt full of spaces survives intact.
-  let exe = claudeExe;
-  let spawnArgs = claudeArgs;
+  // 2024 argument-injection issue blocks it, and npm's global installs -- Claude's
+  // and Codex's alike -- are exactly those shims. Route them through the command
+  // interpreter, quoting the arguments ourselves so a prompt full of spaces survives
+  // intact.
+  let exe = engineExe;
+  let spawnArgs = hostArgs;
   const spawnOpts = { cwd: vault, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true };
 
-  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(claudeExe)) {
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(engineExe)) {
     const quote = (a) => `"${String(a).replace(/"/g, '""')}"`;
     exe = process.env.COMSPEC || 'cmd.exe';
-    spawnArgs = ['/d', '/s', '/c', `"${[claudeExe, ...claudeArgs].map(quote).join(' ')}"`];
+    spawnArgs = ['/d', '/s', '/c', `"${[engineExe, ...hostArgs].map(quote).join(' ')}"`];
     spawnOpts.windowsVerbatimArguments = true;
-    log(`routing through ${path.basename(exe)}: ${path.basename(claudeExe)} is a batch shim`);
+    log(`routing through ${path.basename(exe)}: ${path.basename(engineExe)} is a batch shim`);
   }
 
-  log(`starting claude (session ${sessionId}, model ${model})`);
+  log(`starting ${engine.label} (session ${sessionId}, model ${model || 'host default'}, sources ${sources.join('+')})`);
 
   const exitCode = await new Promise((resolve) => {
     const child = spawn(exe, spawnArgs, spawnOpts);
@@ -276,22 +285,33 @@ async function main() {
     // The agent's own output goes to the log and, unless silenced, to the terminal.
     // Sending it only to the log made `wiki-history` sit silent for minutes with the
     // agent working invisibly behind it.
+    let lastOutputMs = Date.now();
     const sink = (buf) => {
+      lastOutputMs = Date.now();
       try { fs.appendFileSync(LOG, buf); } catch { /* ignore */ }
       if (!QUIET) process.stdout.write(buf);
     };
     child.stdout.on('data', sink);
     child.stderr.on('data', sink);
 
-    // Watchdog. A run whose transcripts stop moving for STALL_MINUTES is hung, not
+    // Watchdog. A run that stops making progress for STALL_MINUTES is hung, not
     // thinking: an earlier version of this pipeline once sat on a single model call
     // for 100 minutes.
+    //
+    // How progress is measured differs by host. Claude's -p stdout stays silent
+    // until the end, so transcript mtimes are the only signal, and subagent
+    // transcripts count. Codex streams a JSON event per step and has no
+    // --session-id to find a transcript by, so its stdout is both the available
+    // signal and the better one: an unrelated interactive session cannot fake it.
     let killed = false;
     const watchdog = setInterval(() => {
       if (child.exitCode !== null) return;
       const cutoff = Date.now() - STALL_MINUTES * 60000;
-      if (sessionActiveSince(sessionId, cutoff)) return;
-      log(`watchdog: session ${sessionId} wrote nothing for ${STALL_MINUTES} minutes; stopping it`);
+      const active = engine.watchdog === 'stdout'
+        ? lastOutputMs > cutoff
+        : sessionActiveSince(engine.sessionsDir, sessionId, cutoff);
+      if (active) return;
+      log(`watchdog: ${engine.label} made no progress for ${STALL_MINUTES} minutes; stopping it`);
       killed = true;
       child.kill();
       setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 30000);
@@ -310,8 +330,8 @@ async function main() {
   });
 
   if (exitCode === -2) fail(`the run stalled and was stopped (session ${sessionId})`);
-  if (exitCode === -1) fail(`could not run ${claudeExe} (session ${sessionId})`);
-  if (exitCode !== 0) fail(`claude exited ${exitCode} (session ${sessionId})`);
+  if (exitCode === -1) fail(`could not run ${engineExe} (session ${sessionId})`);
+  if (exitCode !== 0) fail(`${engine.label} exited ${exitCode} (session ${sessionId})`);
 
   // A run that stamped nothing did not ingest, whatever its exit code says. This is
   // the guard that catches a pipeline reporting success having done no work, which
@@ -358,11 +378,20 @@ function findLockUnder(dir, depth = 0) {
   return null;
 }
 
-/** Newest log.md entry by timestamp, wherever the run filed it. */
+/**
+ * Newest log.md entry by timestamp, wherever the run filed it.
+ *
+ * The tags come from the host registry rather than being hardcoded, because a
+ * Codex-only run writes CODEX_HISTORY_INGEST and would otherwise fall through to
+ * the generic headline, making a real ingest look like a run that did nothing —
+ * and the notification is the only thing most users ever see.
+ */
 function newestLogEntry(logMd) {
+  const tags = HOSTS.map((h) => h.logTag).join('|');
+  const pattern = new RegExp(`^- \\[[^\\]]*\\]\\s*(${tags})`, 'i');
   try {
     const lines = fs.readFileSync(logMd, 'utf8').split('\n')
-      .filter((l) => /^- \[[^\]]*\]\s*CLAUDE/i.test(l))
+      .filter((l) => pattern.test(l))
       .sort()
       .reverse();
     if (!lines.length) return null;
